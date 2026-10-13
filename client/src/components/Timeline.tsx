@@ -8,11 +8,11 @@ import { Button, cx, inputClass } from './ui';
 
 const ICONS = {
   ORDER_PLACED: { icon: ShoppingBag, color: 'bg-sky-100 text-sky-700' },
-  STATUS_CHANGE: { icon: ArrowRightLeft, color: 'bg-slate-100 text-slate-600' },
+  STATUS_CHANGE: { icon: ArrowRightLeft, color: 'bg-zinc-100 text-zinc-600' },
   NOTE: { icon: StickyNote, color: 'bg-yellow-100 text-yellow-700' },
   TASK: { icon: CheckSquare, color: 'bg-emerald-100 text-emerald-700' },
   EMAIL: { icon: Mail, color: 'bg-indigo-100 text-indigo-700' },
-  AI_SUMMARY: { icon: Bot, color: 'bg-violet-100 text-violet-700' },
+  AI_SUMMARY: { icon: Bot, color: 'bg-brand-100 text-brand-700' },
   WORKFLOW: { icon: Zap, color: 'bg-fuchsia-100 text-fuchsia-700' },
 } as const;
 
@@ -21,7 +21,7 @@ const originLabel = (origin?: string) =>
 
 export function Timeline({ items, customerId }: { items: TimelineItem[]; customerId: string }) {
   return (
-    <ol className="relative space-y-4 border-l border-slate-200 pl-6">
+    <ol className="relative space-y-4 border-l border-zinc-200 pl-6">
       {items.map((item) => {
         const { icon: Icon, color } = ICONS[item.kind] ?? ICONS.NOTE;
         const origin = originLabel(item.origin);
@@ -31,18 +31,18 @@ export function Timeline({ items, customerId }: { items: TimelineItem[]; custome
               <Icon className="h-3.5 w-3.5" />
             </span>
             <div className="flex flex-wrap items-center gap-x-2 text-sm">
-              <span className="font-medium text-slate-800">{item.title}</span>
+              <span className="font-medium text-zinc-800">{item.title}</span>
               {item.status && <StatusPill status={item.status} />}
-              {origin && <span className="rounded bg-slate-100 px-1.5 text-[11px] text-slate-500">{origin}</span>}
+              {origin && <span className="rounded bg-zinc-100 px-1.5 text-[11px] text-zinc-500">{origin}</span>}
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-zinc-400">
               {dateTime(item.at)}
               {item.dueAt && item.kind === 'TASK' && ` · due ${dateTime(item.dueAt)}`}
             </p>
             {item.kind === 'EMAIL' && item.status === 'DRAFT' && item.activityId ? (
               <DraftReview item={item} customerId={customerId} />
             ) : (
-              item.body && item.kind !== 'ORDER_PLACED' ? <p className="mt-1 whitespace-pre-line text-sm text-slate-600">{item.body}</p> : item.body && <p className="text-sm text-slate-600">{item.body}</p>
+              item.body && item.kind !== 'ORDER_PLACED' ? <p className="mt-1 whitespace-pre-line text-sm text-zinc-600">{item.body}</p> : item.body && <p className="text-sm text-zinc-600">{item.body}</p>
             )}
             {item.kind === 'TASK' && item.status === 'OPEN' && item.activityId && <CompleteTask id={item.activityId} customerId={customerId} />}
           </li>
@@ -54,7 +54,7 @@ export function Timeline({ items, customerId }: { items: TimelineItem[]; custome
 
 function StatusPill({ status }: { status: string }) {
   const style =
-    status === 'DRAFT' ? 'bg-amber-100 text-amber-800' : status === 'OPEN' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600';
+    status === 'DRAFT' ? 'bg-amber-100 text-amber-800' : status === 'OPEN' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-600';
   return <span className={cx('rounded px-1.5 text-[11px] font-semibold', style)}>{status}</span>;
 }
 

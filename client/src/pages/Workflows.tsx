@@ -39,8 +39,8 @@ export function WorkflowsPage() {
             <Card key={w.id}>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="font-semibold text-slate-800">{w.name}</h3>
-                  <p className="text-sm text-slate-500">{w.description}</p>
+                  <h3 className="font-semibold text-zinc-800">{w.name}</h3>
+                  <p className="text-sm text-zinc-500">{w.description}</p>
                 </div>
                 <button
                   role="switch"
@@ -48,7 +48,7 @@ export function WorkflowsPage() {
                   disabled={user?.role !== 'ADMIN'}
                   title={user?.role !== 'ADMIN' ? 'Only admins can change workflows' : undefined}
                   onClick={() => toggle.mutate(w)}
-                  className={cx('relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-50', w.isActive ? 'bg-violet-600' : 'bg-slate-300')}
+                  className={cx('relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-50', w.isActive ? 'bg-brand-600' : 'bg-zinc-300')}
                 >
                   <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition', w.isActive ? 'left-5.5' : 'left-0.5')} />
                 </button>
@@ -62,12 +62,12 @@ export function WorkflowsPage() {
                   <ul>{w.actions.map((a, i) => <li key={i}>{describeAction(a)}</li>)}</ul>
                 </Step>
               </div>
-              <p className="mt-2 text-xs text-slate-400">{w.runCount} runs</p>
+              <p className="mt-2 text-xs text-zinc-400">{w.runCount} runs</p>
             </Card>
           ))}
         </div>
 
-        <Card title={<span className="flex items-center gap-1.5"><Zap className="h-4 w-4 text-violet-500" /> Execution log</span>} className="lg:col-span-2">
+        <Card title={<span className="flex items-center gap-1.5"><Zap className="h-4 w-4 text-brand-500" /> Execution log</span>} className="lg:col-span-2">
           {runs.isLoading ? (
             <Spinner />
           ) : !runs.data?.length ? (
@@ -78,14 +78,14 @@ export function WorkflowsPage() {
                 <li key={r.id} className="text-sm">
                   <div className="flex items-center gap-1.5">
                     {r.status === 'SUCCESS' ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-rose-500" />}
-                    <span className="font-medium text-slate-800">{r.workflow.name}</span>
+                    <span className="font-medium text-zinc-800">{r.workflow.name}</span>
                   </div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-zinc-500">
                     {dateTime(r.createdAt)} ·{' '}
                     {r.customer?.id ? <Link className="hover:underline" to={`/customers/${r.customer.id}`}>{fullName(r.customer)}</Link> : '—'}
                     {r.order && <> · <Link className="hover:underline" to={`/orders/${r.order.id}`}>#{r.order.number}</Link></>}
                   </p>
-                  <ul className="mt-1 space-y-0.5 pl-5 text-xs text-slate-600">
+                  <ul className="mt-1 space-y-0.5 pl-5 text-xs text-zinc-600">
                     {r.output.map((o, i) => (
                       <li key={i} className={o.ok ? '' : 'text-rose-600'}>• {o.detail}</li>
                     ))}
@@ -102,9 +102,9 @@ export function WorkflowsPage() {
 
 function Step({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-2">
-      <p className="mb-0.5 font-semibold uppercase tracking-wide text-violet-600">{label}</p>
-      <div className="text-slate-700">{children}</div>
+    <div className="rounded-lg bg-zinc-50 p-2">
+      <p className="mb-0.5 font-semibold uppercase tracking-wide text-brand-600">{label}</p>
+      <div className="text-zinc-700">{children}</div>
     </div>
   );
 }

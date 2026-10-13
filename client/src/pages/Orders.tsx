@@ -59,7 +59,7 @@ export function OrdersPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
+              <thead className="text-left text-xs uppercase tracking-wide text-zinc-400">
                 <tr>
                   <th className="py-2">Order</th>
                   <th>Customer</th>
@@ -70,20 +70,20 @@ export function OrdersPage() {
                   <th className="text-right">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-zinc-100">
                 {rows.map((o) => {
                   const risk = riskById.get(o.id);
                   return (
-                    <tr key={o.id} className="hover:bg-slate-50">
-                      <td className="py-2.5"><Link to={`/orders/${o.id}`} className="font-medium hover:text-violet-700">#{o.number}</Link></td>
+                    <tr key={o.id} className="hover:bg-zinc-50">
+                      <td className="py-2.5"><Link to={`/orders/${o.id}`} className="font-medium hover:text-brand-700">#{o.number}</Link></td>
                       <td>
                         {o.customer && <Link to={`/customers/${o.customer.id}`} className="hover:underline">{fullName(o.customer)}</Link>}
-                        {o.customer?.isGuest && <span className="ml-1 text-xs text-slate-400">guest</span>}
+                        {o.customer?.isGuest && <span className="ml-1 text-xs text-zinc-400">guest</span>}
                       </td>
-                      <td className="text-slate-500">{date(o.wooCreatedAt)}</td>
+                      <td className="text-zinc-500">{date(o.wooCreatedAt)}</td>
                       <td><StatusBadge status={o.status} /></td>
                       <td title={risk?.flags.map((f) => f.reason).join('\n')}>{risk && <SeverityBadge severity={risk.severity} />}</td>
-                      <td className="text-xs text-slate-500">{o.paymentMethod}</td>
+                      <td className="text-xs text-zinc-500">{o.paymentMethod}</td>
                       <td className="text-right font-medium">{money(o.total, o.currency)}</td>
                     </tr>
                   );
@@ -101,7 +101,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   return (
     <button
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-xs font-medium ${active ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+      className={`rounded-full border px-3 py-1 text-xs font-medium ${active ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
     >
       {children}
     </button>

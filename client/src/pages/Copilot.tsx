@@ -61,7 +61,7 @@ export function CopilotPage() {
               {messages.length === 0 && (
                 <div className="grid gap-2 md:grid-cols-2">
                   {SUGGESTIONS.map((s) => (
-                    <button key={s} onClick={() => send(s)} className="rounded-lg border border-slate-200 p-3 text-left text-sm text-slate-600 hover:border-violet-300 hover:bg-violet-50">
+                    <button key={s} onClick={() => send(s)} className="rounded-lg border border-zinc-200 p-3 text-left text-sm text-zinc-600 hover:border-brand-300 hover:bg-brand-50">
                       {s}
                     </button>
                   ))}
@@ -69,19 +69,19 @@ export function CopilotPage() {
               )}
               {messages.map((m, i) => (
                 <div key={i} className={cx('flex gap-3', m.role === 'user' && 'flex-row-reverse')}>
-                  <div className={cx('grid h-7 w-7 shrink-0 place-items-center rounded-full', m.role === 'user' ? 'bg-slate-200' : 'bg-violet-600 text-white')}>
+                  <div className={cx('grid h-7 w-7 shrink-0 place-items-center rounded-full', m.role === 'user' ? 'bg-zinc-200' : 'bg-brand-600 text-white')}>
                     {m.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                   </div>
-                  <div className={cx('max-w-[85%] space-y-2 rounded-xl px-3.5 py-2.5 text-sm', m.role === 'user' ? 'bg-slate-100' : 'border border-slate-200 bg-white')}>
+                  <div className={cx('max-w-[85%] space-y-2 rounded-xl px-3.5 py-2.5 text-sm', m.role === 'user' ? 'bg-zinc-100' : 'border border-zinc-200 bg-white')}>
                     {m.steps && m.steps.length > 0 && <ToolTrace steps={m.steps} />}
-                    <p className="whitespace-pre-wrap text-slate-800">{m.content}</p>
+                    <p className="whitespace-pre-wrap text-zinc-800">{m.content}</p>
                   </div>
                 </div>
               ))}
-              {ask.isPending && <p className="pl-10 text-sm text-slate-400">Thinking and calling CRM tools…</p>}
+              {ask.isPending && <p className="pl-10 text-sm text-zinc-400">Thinking and calling CRM tools…</p>}
               <ErrorNote error={ask.error} />
             </div>
-            <form onSubmit={submit} className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+            <form onSubmit={submit} className="mt-3 flex gap-2 border-t border-zinc-100 pt-3">
               <input className={inputClass} placeholder="Ask about customers, orders, risks…" value={input} onChange={(e) => setInput(e.target.value)} />
               <Button type="submit" loading={ask.isPending}><Send className="h-4 w-4" /></Button>
             </form>
@@ -92,9 +92,9 @@ export function CopilotPage() {
             Status:{' '}
             {status.data?.enabled ? <span className="font-medium text-emerald-600">connected</span> : <span className="font-medium text-amber-600">no LLM key</span>}
           </p>
-          {status.data?.model && <p className="text-xs text-slate-500">Model: {status.data.model}</p>}
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Tools</p>
-          <ul className="mt-1 space-y-1 font-mono text-xs text-slate-600">
+          {status.data?.model && <p className="text-xs text-zinc-500">Model: {status.data.model}</p>}
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">Tools</p>
+          <ul className="mt-1 space-y-1 font-mono text-xs text-zinc-600">
             {status.data?.tools.map((t) => <li key={t}>{t}</li>)}
           </ul>
         </Card>
@@ -105,18 +105,18 @@ export function CopilotPage() {
 
 function ToolTrace({ steps }: { steps: CopilotStep[] }) {
   return (
-    <details className="rounded-lg bg-slate-50 p-2 text-xs">
-      <summary className="flex cursor-pointer items-center gap-1 text-slate-500">
+    <details className="rounded-lg bg-zinc-50 p-2 text-xs">
+      <summary className="flex cursor-pointer items-center gap-1 text-zinc-500">
         <Wrench className="h-3 w-3" /> Used {steps.length} tool call{steps.length > 1 ? 's' : ''}
         {steps.some((s) => s.mutates) && <span className="ml-1 rounded bg-amber-100 px-1 text-amber-800">made changes</span>}
       </summary>
       <ol className="mt-2 space-y-1.5">
         {steps.map((s, i) => (
           <li key={i}>
-            <p className="flex items-center gap-1 font-mono text-slate-700">
+            <p className="flex items-center gap-1 font-mono text-zinc-700">
               <ChevronRight className="h-3 w-3" /> {s.tool}({JSON.stringify(s.args)})
             </p>
-            <p className="truncate pl-4 font-mono text-slate-400">{s.resultPreview}</p>
+            <p className="truncate pl-4 font-mono text-zinc-400">{s.resultPreview}</p>
           </li>
         ))}
       </ol>

@@ -26,11 +26,11 @@ export function OrderDetailPage() {
 
   return (
     <>
-      <Link to="/orders" className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+      <Link to="/orders" className="mb-4 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800">
         <ArrowLeft className="h-4 w-4" /> Orders
       </Link>
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Order #{o.number}</h1>
+        <h1 className="text-2xl font-semibold text-zinc-900">Order #{o.number}</h1>
         <StatusBadge status={o.status} />
         {o.risk && <SeverityBadge severity={o.risk.severity} />}
       </div>
@@ -42,8 +42,8 @@ export function OrderDetailPage() {
               <ul className="space-y-2 text-sm">
                 {o.risk.flags.map((f) => (
                   <li key={f.code}>
-                    <SeverityBadge severity={f.severity} /> <span className="ml-1 text-slate-700">{f.reason}</span>
-                    <p className="ml-1 text-xs text-slate-500">Suggested: {f.suggestedAction}</p>
+                    <SeverityBadge severity={f.severity} /> <span className="ml-1 text-zinc-700">{f.reason}</span>
+                    <p className="ml-1 text-xs text-zinc-500">Suggested: {f.suggestedAction}</p>
                   </li>
                 ))}
               </ul>
@@ -51,11 +51,11 @@ export function OrderDetailPage() {
           )}
           <Card title="Line items">
             <table className="w-full text-sm">
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-zinc-100">
                 {o.lineItems.map((li, i) => (
                   <tr key={i}>
                     <td className="py-2">{li.name}</td>
-                    <td className="text-slate-500">× {li.quantity}</td>
+                    <td className="text-zinc-500">× {li.quantity}</td>
                     <td className="text-right">{money(li.total, o.currency)}</td>
                   </tr>
                 ))}
@@ -75,7 +75,7 @@ export function OrderDetailPage() {
                 {o.workflowRuns.map((r) => (
                   <li key={r.id}>
                     <span className="font-medium">{r.workflow.name}</span> · <span className={r.status === 'SUCCESS' ? 'text-emerald-600' : 'text-rose-600'}>{r.status}</span>
-                    <span className="ml-2 text-xs text-slate-400">{dateTime(r.createdAt)}</span>
+                    <span className="ml-2 text-xs text-zinc-400">{dateTime(r.createdAt)}</span>
                   </li>
                 ))}
               </ul>
@@ -85,25 +85,25 @@ export function OrderDetailPage() {
 
         <div className="space-y-6">
           <Card title="Customer">
-            <Link to={`/customers/${o.customer.id}`} className="font-medium text-violet-700 hover:underline">{fullName(o.customer)}</Link>
-            <p className="text-sm text-slate-500">{o.customer.email}</p>
+            <Link to={`/customers/${o.customer.id}`} className="font-medium text-brand-700 hover:underline">{fullName(o.customer)}</Link>
+            <p className="text-sm text-zinc-500">{o.customer.email}</p>
             <dl className="mt-3 space-y-1 text-sm">
-              <div className="flex justify-between"><dt className="text-slate-500">Payment</dt><dd>{o.paymentMethod}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Placed</dt><dd>{dateTime(o.wooCreatedAt)}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Last synced</dt><dd>{dateTime(o.syncedAt)}</dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">Woo ID</dt><dd>{o.wooOrderId}</dd></div>
+              <div className="flex justify-between"><dt className="text-zinc-500">Payment</dt><dd>{o.paymentMethod}</dd></div>
+              <div className="flex justify-between"><dt className="text-zinc-500">Placed</dt><dd>{dateTime(o.wooCreatedAt)}</dd></div>
+              <div className="flex justify-between"><dt className="text-zinc-500">Last synced</dt><dd>{dateTime(o.syncedAt)}</dd></div>
+              <div className="flex justify-between"><dt className="text-zinc-500">Woo ID</dt><dd>{o.wooOrderId}</dd></div>
             </dl>
           </Card>
           <Card title="Status history">
-            <ol className="space-y-3 border-l border-slate-200 pl-4 text-sm">
+            <ol className="space-y-3 border-l border-zinc-200 pl-4 text-sm">
               {o.statusEvents.map((e) => (
                 <li key={e.id} className="relative">
-                  <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-violet-500 ring-4 ring-white" />
+                  <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-white" />
                   <div className="flex items-center gap-1.5">
-                    {e.previousStatus && <><StatusBadge status={e.previousStatus} /><span className="text-slate-400">→</span></>}
+                    {e.previousStatus && <><StatusBadge status={e.previousStatus} /><span className="text-zinc-400">→</span></>}
                     <StatusBadge status={e.newStatus} />
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-400">{dateTime(e.occurredAt)} · via {e.source.toLowerCase()}</p>
+                  <p className="mt-0.5 text-xs text-zinc-400">{dateTime(e.occurredAt)} · via {e.source.toLowerCase()}</p>
                 </li>
               ))}
             </ol>

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, Bot, CheckCircle2, Circle, Mail, MapPin, Phone, Sparkles } from 'lucide-react';
-import { Button, Card, Empty, ErrorNote, SeverityBadge, Spinner, StatusBadge, Tag, inputClass } from '../components/ui';
+import { Avatar, Button, Card, Empty, ErrorNote, SeverityBadge, Spinner, StatusBadge, Tag, inputClass } from '../components/ui';
 import { Timeline } from '../components/Timeline';
 import { api } from '../lib/api';
 import { date, fullName, money } from '../lib/format';
@@ -19,7 +19,7 @@ export function Customer360Page() {
 
   return (
     <>
-      <Link to="/customers" className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+      <Link to="/customers" className="mb-4 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800">
         <ArrowLeft className="h-4 w-4" /> Customers
       </Link>
 
@@ -27,19 +27,16 @@ export function Customer360Page() {
         <div className="space-y-6">
           <Card>
             <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-full bg-violet-100 text-lg font-semibold text-violet-700">
-                {c.firstName[0]}
-                {c.lastName[0]}
-              </div>
+              <Avatar name={fullName(c)} size="lg" />
               <div>
-                <h1 className="text-lg font-semibold text-slate-900">{fullName(c)}</h1>
-                <p className="text-xs text-slate-500">{c.isGuest ? 'Guest checkout' : `WooCommerce customer #${c.wooCustomerId}`}</p>
+                <h1 className="text-lg font-semibold text-zinc-900">{fullName(c)}</h1>
+                <p className="text-xs text-zinc-500">{c.isGuest ? 'Guest checkout' : `WooCommerce customer #${c.wooCustomerId}`}</p>
               </div>
             </div>
-            <ul className="mt-4 space-y-1.5 text-sm text-slate-600">
-              <li className="flex items-center gap-2"><Mail className="h-4 w-4 text-slate-400" /> {c.email}</li>
-              {c.phone && <li className="flex items-center gap-2"><Phone className="h-4 w-4 text-slate-400" /> {c.phone}</li>}
-              {c.city && <li className="flex items-center gap-2"><MapPin className="h-4 w-4 text-slate-400" /> {[c.city, c.country].filter(Boolean).join(', ')}</li>}
+            <ul className="mt-4 space-y-1.5 text-sm text-zinc-600">
+              <li className="flex items-center gap-2"><Mail className="h-4 w-4 text-zinc-400" /> {c.email}</li>
+              {c.phone && <li className="flex items-center gap-2"><Phone className="h-4 w-4 text-zinc-400" /> {c.phone}</li>}
+              {c.city && <li className="flex items-center gap-2"><MapPin className="h-4 w-4 text-zinc-400" /> {[c.city, c.country].filter(Boolean).join(', ')}</li>}
             </ul>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
               <Metric label="Lifetime value" value={money(c.metrics.totalSpent)} />
@@ -57,10 +54,10 @@ export function Customer360Page() {
                     <li key={`${r.orderId}-${f.code}`} className="text-sm">
                       <div className="flex items-center gap-2">
                         <SeverityBadge severity={f.severity} />
-                        <Link to={`/orders/${r.orderId}`} className="font-medium hover:text-violet-700">#{r.number}</Link>
+                        <Link to={`/orders/${r.orderId}`} className="font-medium hover:text-brand-700">#{r.number}</Link>
                       </div>
-                      <p className="mt-1 text-slate-600">{f.reason}</p>
-                      <p className="text-xs text-slate-500">→ {f.suggestedAction}</p>
+                      <p className="mt-1 text-zinc-600">{f.reason}</p>
+                      <p className="text-xs text-zinc-500">→ {f.suggestedAction}</p>
                     </li>
                   )),
                 )}
@@ -69,12 +66,12 @@ export function Customer360Page() {
           )}
 
           <Card title={`Orders (${c.orders.length})`}>
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-zinc-100">
               {c.orders.map((o) => (
                 <li key={o.id} className="flex items-center justify-between py-2 text-sm">
                   <div>
-                    <Link to={`/orders/${o.id}`} className="font-medium hover:text-violet-700">#{o.number}</Link>
-                    <p className="text-xs text-slate-400">{date(o.wooCreatedAt)}</p>
+                    <Link to={`/orders/${o.id}`} className="font-medium hover:text-brand-700">#{o.number}</Link>
+                    <p className="text-xs text-zinc-400">{date(o.wooCreatedAt)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={o.status} />
@@ -100,9 +97,9 @@ export function Customer360Page() {
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-2">
-      <p className="text-sm font-semibold text-slate-900">{value}</p>
-      <p className="text-[11px] text-slate-500">{label}</p>
+    <div className="rounded-lg bg-zinc-50 p-2">
+      <p className="text-sm font-semibold text-zinc-900">{value}</p>
+      <p className="text-[11px] text-zinc-500">{label}</p>
     </div>
   );
 }
@@ -157,7 +154,7 @@ function AiPanel({ customer }: { customer: Customer360 }) {
   });
 
   return (
-    <Card title={<span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-violet-500" /> AI assistant</span>}>
+    <Card title={<span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-brand-500" /> AI assistant</span>}>
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <Button variant="secondary" onClick={() => summary.mutate()} loading={summary.isPending}>
@@ -165,14 +162,14 @@ function AiPanel({ customer }: { customer: Customer360 }) {
           </Button>
           <ErrorNote error={summary.error} />
           {summary.data && (
-            <div className="mt-3 space-y-2 rounded-lg bg-violet-50/60 p-3 text-sm">
-              <p className="text-slate-800">{summary.data.summary}</p>
-              <p className="text-slate-600">{summary.data.purchaseBehavior}</p>
+            <div className="mt-3 space-y-2 rounded-lg bg-brand-50/60 p-3 text-sm">
+              <p className="text-zinc-800">{summary.data.summary}</p>
+              <p className="text-zinc-600">{summary.data.purchaseBehavior}</p>
               {summary.data.risks.length > 0 && (
                 <ul className="list-disc pl-4 text-rose-700">{summary.data.risks.map((r) => <li key={r}>{r}</li>)}</ul>
               )}
-              <p className="font-medium text-violet-800">Next best action: {summary.data.nextBestAction}</p>
-              <p className="text-[11px] text-slate-400">
+              <p className="font-medium text-brand-800">Next best action: {summary.data.nextBestAction}</p>
+              <p className="text-[11px] text-zinc-400">
                 Sources: {summary.data.sources.join(', ') || '—'} · {summary.data.generatedBy === 'llm' ? 'LLM' : 'rules fallback'}
               </p>
             </div>
@@ -227,7 +224,7 @@ function ActivityComposer({ customerId }: { customerId: string }) {
       <form onSubmit={submit} className="space-y-2">
         <div className="flex gap-1">
           {(['NOTE', 'TASK'] as const).map((t) => (
-            <button key={t} type="button" onClick={() => setType(t)} className={`rounded-md px-2.5 py-1 text-xs font-medium ${type === t ? 'bg-violet-100 text-violet-700' : 'text-slate-500 hover:bg-slate-100'}`}>
+            <button key={t} type="button" onClick={() => setType(t)} className={`rounded-md px-2.5 py-1 text-xs font-medium ${type === t ? 'bg-brand-100 text-brand-700' : 'text-zinc-500 hover:bg-zinc-100'}`}>
               {t === 'NOTE' ? <><Circle className="mr-1 inline h-3 w-3" />Note</> : <><CheckCircle2 className="mr-1 inline h-3 w-3" />Task</>}
             </button>
           ))}

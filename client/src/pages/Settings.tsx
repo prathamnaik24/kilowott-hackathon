@@ -23,7 +23,7 @@ const EVENT_STYLE: Record<string, string> = {
   PROCESSED: 'text-emerald-600',
   PENDING: 'text-amber-600',
   FAILED: 'text-rose-600',
-  IGNORED: 'text-slate-400',
+  IGNORED: 'text-zinc-400',
 };
 
 export function SettingsPage() {
@@ -89,7 +89,7 @@ export function SettingsPage() {
         </Card>
 
         <Card title="Connect a real store">
-          <ol className="list-decimal space-y-1.5 pl-4 text-sm text-slate-600">
+          <ol className="list-decimal space-y-1.5 pl-4 text-sm text-zinc-600">
             <li>WooCommerce → Settings → Advanced → REST API → add a <b>Read/Write</b> key.</li>
             <li>Set <code>WOO_STORE_URL</code>, <code>WOO_CONSUMER_KEY</code>, <code>WOO_CONSUMER_SECRET</code>.</li>
             <li>Settings → Advanced → Webhooks: add <code>order.created/updated</code> and <code>customer.created/updated</code> pointing at the endpoint, with secret <code>WOO_WEBHOOK_SECRET</code>.</li>
@@ -101,13 +101,13 @@ export function SettingsPage() {
             <Empty>No webhook events yet.</Empty>
           ) : (
             <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-wide text-slate-400">
+              <thead className="text-left text-xs uppercase tracking-wide text-zinc-400">
                 <tr><th className="py-2">Received</th><th>Topic</th><th>Resource</th><th>Status</th><th>Attempts</th><th>Error</th></tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-zinc-100">
                 {data.recentEvents.map((e) => (
                   <tr key={e.id}>
-                    <td className="py-2 text-slate-500">{dateTime(e.receivedAt)}</td>
+                    <td className="py-2 text-zinc-500">{dateTime(e.receivedAt)}</td>
                     <td className="font-mono text-xs">{e.topic}</td>
                     <td>{e.resourceId ?? '—'}</td>
                     <td className={cx('font-medium', EVENT_STYLE[e.status])}>{e.status}</td>
@@ -127,8 +127,8 @@ export function SettingsPage() {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="capitalize text-slate-500">{label}</dt>
-      <dd className="truncate text-right text-slate-800">{children}</dd>
+      <dt className="capitalize text-zinc-500">{label}</dt>
+      <dd className="truncate text-right text-zinc-800">{children}</dd>
     </div>
   );
 }

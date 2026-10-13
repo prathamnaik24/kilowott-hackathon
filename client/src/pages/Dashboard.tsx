@@ -1,9 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { AlertTriangle, CheckSquare, DollarSign, Package, Users, Zap } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { Card, Empty, PageHeader, SeverityBadge, Spinner, StatusBadge } from '../components/ui';
+import { CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
+import {
+  Card,
+  Empty,
+  PageHeader,
+  Person,
+  STATUS_LABEL,
+  SeverityBadge,
+  Spinner,
+  StatusBadge,
+  cx,
+  statusColor,
+  tableHead,
+  tableRow,
+  td,
+  tdNum,
+  th,
+  thNum,
+} from '../components/ui';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { fullName, money, timeAgo } from '../lib/format';
 import type { AtRiskOrder, Order, WorkflowRun } from '../lib/types';
 
@@ -15,124 +32,131 @@ interface DashboardData {
   atRisk: AtRiskOrder[];
 }
 
-const STATUS_ORDER = ['pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed'];
-const STATUS_BAR: Record<string, string> = {
-  pending: 'bg-slate-400',
-  processing: 'bg-emerald-500',
-  'on-hold': 'bg-amber-500',
-  completed: 'bg-sky-500',
-  cancelled: 'bg-rose-500',
-  refunded: 'bg-zinc-400',
-  failed: 'bg-red-600',
-};
+const STATUS_ORDER = ['processing', 'on-hold', 'pending', 'completed', 'refunded', 'cancelled', 'failed'];
 
 export function DashboardPage() {
+  const { user } = useAuth();
   // Polls so webhook-driven changes appear without a page refresh.
-  const { data, isLoading } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api<DashboardData>('/dashboard'),
-    refetchInterval: 3000,
-  });
+  const { data, isLoading } = useQuery({ queryKey: ['dashboard'], queryFn: () => api<DashboardData>('/dashboard'), refetchInterval: 3000 });
   if (isLoading || !data) return <Spinner />;
   const { kpis } = data;
-  const maxStatus = Math.max(1, ...Object.values(data.ordersByStatus));
+  const totalOrders = Math.max(1, Object.values(data.ordersByStatus).reduce((a, b) => a + b, 0));
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Live view of your WooCommerce store — updates automatically from webhooks." />
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <Kpi icon={<Users />} label="Customers" value={kpis.customers} />
-        <Kpi icon={<Package />} label="Orders" value={kpis.orders} />
-        <Kpi icon={<DollarSign />} label="Revenue" value={money(kpis.revenue)} />
-        <Kpi icon={<CheckSquare />} label="Open tasks" value={kpis.openTasks} />
-        <Kpi icon={<AlertTriangle />} label="At-risk orders" value={kpis.atRisk} tone="rose" />
-      </div>
+      <PageHeader title={`Good to see you, ${user?.name.split(' ')[0] ?? 'there'}`} subtitle="Live view of your WooCommerce store, updated from webhooks." />
+
+      <section className="grid grid-cols-2 divide-zinc-100 rounded-xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] max-lg:gap-y-4 max-lg:py-4 lg:grid-cols-5 lg:divide-x">
+        <Stat label="Revenue" value={money(kpis.revenue)} hint="Processing, on hold and completed" />
+        <Stat label="Orders" value={kpis.orders.toLocaleString()} hint="All statuses" />
+        <Stat label="Customers" value={kpis.customers.toLocaleString()} hint="Registered + guest" />
+        <Stat label="Open tasks" value={kpis.openTasks.toLocaleString()} hint="Assigned to the team" />
+        <Stat label="At-risk orders" value={kpis.atRisk.toLocaleString()} hint="Flagged by risk rules" tone={kpis.atRisk ? 'warn' : undefined} />
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Card title="At-risk orders" className="lg:col-span-2" action={<Link to="/orders?risk=1" className="text-xs text-violet-600">View all</Link>}>
-          {data.atRisk.length === 0 ? (
-            <Empty>No orders at risk 🎉</Empty>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {data.atRisk.map((r) => (
-                <li key={r.orderId} className="flex items-start justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="text-sm">
-                      <Link to={`/orders/${r.orderId}`} className="font-medium text-slate-800 hover:text-violet-700">#{r.number}</Link>{' '}
-                      <Link to={`/customers/${r.customer.id}`} className="text-slate-500 hover:underline">{r.customer.name}</Link>{' '}
-                      <StatusBadge status={r.status} />
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">{r.flags.map((f) => f.reason).join(' · ')}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-sm font-medium">{money(r.total, r.currency)}</span>
-                    <SeverityBadge severity={r.severity} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card title="Orders by status">
-          <div className="space-y-2">
+        <Card title="Orders by status" className="lg:col-span-3">
+          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
             {STATUS_ORDER.filter((s) => data.ordersByStatus[s]).map((s) => (
-              <Link key={s} to={`/orders?status=${s}`} className="block">
-                <div className="flex justify-between text-xs">
-                  <span className="capitalize text-slate-600">{s}</span>
-                  <span className="font-medium text-slate-800">{data.ordersByStatus[s]}</span>
-                </div>
-                <div className="mt-1 h-2 rounded-full bg-slate-100">
-                  <div className={`h-2 rounded-full ${STATUS_BAR[s]}`} style={{ width: `${(data.ordersByStatus[s] / maxStatus) * 100}%` }} />
-                </div>
+              <div key={s} className={statusColor(s)} style={{ width: `${(data.ordersByStatus[s] / totalOrders) * 100}%` }} title={`${STATUS_LABEL[s]}: ${data.ordersByStatus[s]}`} />
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+            {STATUS_ORDER.filter((s) => data.ordersByStatus[s]).map((s) => (
+              <Link key={s} to={`/orders?status=${s}`} className="flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900">
+                <span className={cx('h-2 w-2 rounded-full', statusColor(s))} />
+                {STATUS_LABEL[s]}
+                <span className="num font-semibold text-zinc-900">{data.ordersByStatus[s]}</span>
               </Link>
             ))}
           </div>
         </Card>
 
-        <Card title="Recent orders" className="lg:col-span-2">
-          <table className="w-full text-sm">
-            <tbody className="divide-y divide-slate-100">
-              {data.recentOrders.map((o) => (
-                <tr key={o.id}>
-                  <td className="py-2"><Link to={`/orders/${o.id}`} className="font-medium hover:text-violet-700">#{o.number}</Link></td>
-                  <td>{o.customer && <Link to={`/customers/${o.customer.id}`} className="hover:underline">{fullName(o.customer)}</Link>}</td>
-                  <td><StatusBadge status={o.status} /></td>
-                  <td className="text-right font-medium">{money(o.total, o.currency)}</td>
-                  <td className="text-right text-xs text-slate-400">{timeAgo(o.wooCreatedAt)}</td>
+        <Card title="Needs attention" className="lg:col-span-2" flush action={<Link to="/orders?risk=1" className="text-xs font-medium text-brand-600 hover:text-brand-700">View all</Link>}>
+          {data.atRisk.length === 0 ? (
+            <Empty icon={<ShieldCheck />}>No orders are at risk right now.</Empty>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className={tableHead}>
+                <tr>
+                  <th className={th}>Customer</th>
+                  <th className={th}>Order</th>
+                  <th className={th}>Why</th>
+                  <th className={thNum}>Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.atRisk.map((r) => (
+                  <tr key={r.orderId} className={tableRow}>
+                    <td className={td}>
+                      <Link to={`/customers/${r.customer.id}`}><Person name={r.customer.name} sub={<SeverityBadge severity={r.severity} />} /></Link>
+                    </td>
+                    <td className={td}>
+                      <Link to={`/orders/${r.orderId}`} className="num font-medium text-zinc-900 hover:text-brand-600">#{r.number}</Link>
+                      <div className="mt-1"><StatusBadge status={r.status} /></div>
+                    </td>
+                    <td className={cx(td, 'max-w-xs text-xs text-zinc-600')}>{r.flags[0]?.reason}{r.flags.length > 1 && <span className="text-zinc-400"> +{r.flags.length - 1} more</span>}</td>
+                    <td className={cx(tdNum, 'font-medium text-zinc-900')}>{money(r.total, r.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Card>
 
-        <Card title={<span className="flex items-center gap-1.5"><Zap className="h-4 w-4 text-violet-500" /> Automation activity</span>} action={<Link to="/workflows" className="text-xs text-violet-600">Log</Link>}>
+        <Card title="Automation activity" flush action={<Link to="/workflows" className="text-xs font-medium text-brand-600 hover:text-brand-700">Run log</Link>}>
           {data.recentRuns.length === 0 ? (
             <Empty>No workflow runs yet. Change an order status in the store to trigger one.</Empty>
           ) : (
-            <ul className="space-y-3">
+            <ul className="divide-y divide-zinc-100">
               {data.recentRuns.map((r) => (
-                <li key={r.id} className="text-sm">
-                  <p className="font-medium text-slate-700">{r.workflow.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {r.customer ? fullName(r.customer) : '—'} · {timeAgo(r.createdAt)} · <span className={r.status === 'SUCCESS' ? 'text-emerald-600' : 'text-rose-600'}>{r.status}</span>
-                  </p>
+                <li key={r.id} className="flex gap-3 px-5 py-3">
+                  {r.status === 'SUCCESS' ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />}
+                  <div className="min-w-0 text-sm">
+                    <p className="truncate font-medium text-zinc-900">{r.workflow.name}</p>
+                    <p className="text-xs text-zinc-500">{r.customer ? fullName(r.customer) : '—'} · {timeAgo(r.createdAt)}</p>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
+        </Card>
+
+        <Card title="Recent orders" className="lg:col-span-3" flush action={<Link to="/orders" className="text-xs font-medium text-brand-600 hover:text-brand-700">All orders</Link>}>
+          <table className="w-full text-sm">
+            <thead className={tableHead}>
+              <tr>
+                <th className={th}>Order</th>
+                <th className={th}>Customer</th>
+                <th className={th}>Status</th>
+                <th className={th}>Placed</th>
+                <th className={thNum}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.recentOrders.map((o) => (
+                <tr key={o.id} className={tableRow}>
+                  <td className={td}><Link to={`/orders/${o.id}`} className="num font-medium text-zinc-900 hover:text-brand-600">#{o.number}</Link></td>
+                  <td className={td}>{o.customer && <Link to={`/customers/${o.customer.id}`}><Person name={fullName(o.customer)} size="sm" /></Link>}</td>
+                  <td className={td}><StatusBadge status={o.status} /></td>
+                  <td className={cx(td, 'text-zinc-500')}>{timeAgo(o.wooCreatedAt)}</td>
+                  <td className={cx(tdNum, 'font-medium text-zinc-900')}>{money(o.total, o.currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </Card>
       </div>
     </>
   );
 }
 
-function Kpi({ icon, label, value, tone = 'violet' }: { icon: ReactNode; label: string; value: ReactNode; tone?: 'violet' | 'rose' }) {
+function Stat({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: 'warn' }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className={`mb-2 inline-grid h-8 w-8 place-items-center rounded-lg [&>svg]:h-4 [&>svg]:w-4 ${tone === 'rose' ? 'bg-rose-50 text-rose-600' : 'bg-violet-50 text-violet-600'}`}>{icon}</div>
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-xl font-semibold text-slate-900">{value}</p>
+    <div className="px-5 lg:py-4">
+      <p className="text-xs font-medium text-zinc-500">{label}</p>
+      <p className={cx('num mt-1 text-2xl font-semibold tracking-tight', tone === 'warn' ? 'text-amber-600' : 'text-zinc-900')}>{value}</p>
+      <p className="mt-0.5 text-xs text-zinc-400">{hint}</p>
     </div>
   );
 }
