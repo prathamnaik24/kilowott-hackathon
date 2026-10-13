@@ -1,0 +1,56 @@
+[
+ {
+  "id": "T-SEC-03b",
+  "title": "Correct password is still refused while the account is locked out",
+  "status": "PASS",
+  "evidence": "admin login after R1 brute-force probe → 429"
+ },
+ {
+  "id": "T-AUTH-08",
+  "title": "Tampered role claim in JWT is rejected",
+  "status": "PASS",
+  "evidence": "forged ADMIN claim → 401"
+ },
+ {
+  "id": "T-ORDER-06",
+  "title": "Order filters (status, amount, customer, date) return exactly the matching orders",
+  "status": "PASS",
+  "evidence": "on-hold 2/2, ≥200 33/33, customer 2/2, from 2099 → 0"
+ },
+ {
+  "id": "T-WEBHOOK-09",
+  "title": "Webhook acknowledged quickly (processing is queued)",
+  "status": "PASS",
+  "evidence": "HTTP 202 in 17 ms"
+ },
+ {
+  "id": "T-WEBHOOK-08",
+  "title": "Retry of failed events is ADMIN-only",
+  "status": "PASS",
+  "evidence": "agent → 403; admin token unavailable (locked out by R1 brute-force probe), admin path covered by T-WEBHOOK-08b"
+ },
+ {
+  "id": "T-QUEUE-05",
+  "title": "Failed events stay observable with sanitized errors",
+  "status": "PASS",
+  "evidence": "FAILED events 2; errors: Conflicting record: a unique field (e.g. email) is already used by another record"
+ },
+ {
+  "id": "T-QUEUE-06",
+  "title": "Workflow run count unchanged by retry attempts (no duplicate side effects)",
+  "status": "PASS",
+  "evidence": "runs 9 → 9"
+ },
+ {
+  "id": "T-QUEUE-07",
+  "title": "Cache driver and hit/miss stats are observable",
+  "status": "PASS",
+  "evidence": "{\"driver\":\"memory\",\"hits\":1,\"misses\":6}"
+ },
+ {
+  "id": "T-QUEUE-08",
+  "title": "Queue driver is reported (expect bullmq when REDIS_URL set)",
+  "status": "NEEDS REVIEW",
+  "evidence": "driver in-process (REDIS_URL empty in this isolated run)"
+ }
+]

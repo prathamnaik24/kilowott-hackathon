@@ -1,6 +1,6 @@
 import { Queue, Worker, type Job } from 'bullmq';
 import { JobQueue } from '../lib/job-queue.js';
-import { getRedis, redisEnabled } from '../lib/redis.js';
+import { getRedis, redisEnabled, withTimeout } from '../lib/redis.js';
 
 /**
  * Webhook processing queue with two interchangeable drivers:
@@ -16,6 +16,12 @@ import { getRedis, redisEnabled } from '../lib/redis.js';
 export const WEBHOOK_QUEUE = 'woopulse-webhooks';
 export const JOB_ATTEMPTS = 3;
 const BACKOFF_MS = 500;
+/**
+ * Upper bound for any producer-side Redis call. ioredis queues commands while disconnected, so without
+ * this an unreachable Redis would hang webhook requests forever (AUD-022). On timeout the caller falls
+ * back to the database: the event stays PENDING and the sweeper enqueues it once Redis is back.
+ */
+const REDIS_CALL_TIMEOUT_MS = 1000;
 
 export interface WebhookJob {
   eventId: string;
@@ -53,17 +59,17 @@ class BullMqWebhookQueue implements WebhookQueueDriver {
 
   async enqueue(eventId: string) {
     // jobId = eventId → BullMQ ignores duplicates while the job is still known to Redis.
-    await this.queue.add('process-webhook', { eventId }, { jobId: eventId });
+    await withTimeout(this.queue.add('process-webhook', { eventId }, { jobId: eventId }), REDIS_CALL_TIMEOUT_MS);
   }
 
   async retry(eventId: string) {
-    const job = await this.queue.getJob(eventId);
-    if (job && (await job.isFailed())) await job.retry();
+    const job = await withTimeout(this.queue.getJob(eventId), REDIS_CALL_TIMEOUT_MS);
+    if (job && (await withTimeout(job.isFailed(), REDIS_CALL_TIMEOUT_MS))) await withTimeout(job.retry(), REDIS_CALL_TIMEOUT_MS);
     else if (!job) await this.enqueue(eventId);
   }
 
   async counts() {
-    const c = await this.queue.getJobCounts('waiting', 'active', 'delayed', 'failed');
+    const c = await withTimeout(this.queue.getJobCounts('waiting', 'active', 'delayed', 'failed'), REDIS_CALL_TIMEOUT_MS);
     return { waiting: c.waiting ?? 0, active: c.active ?? 0, delayed: c.delayed ?? 0, failed: c.failed ?? 0 };
   }
 

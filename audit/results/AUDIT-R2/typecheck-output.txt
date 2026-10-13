@@ -1,0 +1,12 @@
+
+> woopulse-crm@1.0.0 typecheck
+> npm run typecheck -w server && npm run typecheck -w client
+
+
+> @woopulse/server@1.0.0 typecheck
+> tsc --noEmit
+
+
+> @woopulse/client@1.0.0 typecheck
+> tsc --noEmit
+

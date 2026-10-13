@@ -121,15 +121,23 @@ export async function requeueEvents(statuses: string[] = ['PENDING'], olderThanM
     orderBy: { receivedAt: 'asc' },
   });
   const queue = getWebhookQueue();
+  let queued = 0;
   for (const e of events) {
-    if (e.status === 'FAILED') {
-      await prisma.webhookEvent.update({ where: { id: e.id }, data: { status: 'PENDING' } });
-      await queue.retry(e.id);
-    } else {
-      await queue.enqueue(e.id);
+    try {
+      if (e.status === 'FAILED') {
+        await prisma.webhookEvent.update({ where: { id: e.id }, data: { status: 'PENDING' } });
+        await queue.retry(e.id);
+      } else {
+        await queue.enqueue(e.id);
+      }
+      queued++;
+    } catch (err) {
+      // Queue unavailable: the event stays PENDING in the DB and the sweeper tries again later.
+      console.warn(`[webhook] could not enqueue ${e.id}: ${(err as Error).message}`);
+      break;
     }
   }
-  return events.length;
+  return queued;
 }
 
 // In-process mode: the API consumes its own queue. With BullMQ, src/worker.ts consumes it.

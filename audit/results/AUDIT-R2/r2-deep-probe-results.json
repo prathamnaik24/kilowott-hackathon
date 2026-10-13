@@ -1,0 +1,44 @@
+[
+ {
+  "id": "T-WEBHOOK-08b",
+  "title": "Retrying FAILED events re-processes them safely (no crash, no duplicate side effects)",
+  "status": "PASS",
+  "evidence": "requeued 3; statuses after: FAILED/3, FAILED/3, FAILED/3; runs 9→9; activities 14→14"
+ },
+ {
+  "id": "T-QUEUE-06",
+  "title": "Retried events do not duplicate workflow runs or activities",
+  "status": "PASS",
+  "evidence": "runs 9→9, activities 14→14"
+ },
+ {
+  "id": "T-ARCH-09",
+  "title": "Mock WooCommerce is disabled by default in production",
+  "status": "FAIL",
+  "evidence": "NODE_ENV=production, no env → {\"mock\":true,\"jwtDefault\":true,\"webhookDefault\":true,\"adminDefault\":true}"
+ },
+ {
+  "id": "T-SEC-13",
+  "title": "Insecure default secrets are rejected in production",
+  "status": "FAIL",
+  "evidence": "NODE_ENV=production with default secrets → config accepted (jwtDefault/webhookDefault/adminDefault = true/true/true)"
+ },
+ {
+  "id": "T-QUEUE-09",
+  "title": "Worker starts independently and explains in-process mode when REDIS_URL is unset",
+  "status": "PASS",
+  "evidence": "exit 0: [worker] REDIS_URL is not set — the API processes webhooks in-process. Nothing to do."
+ },
+ {
+  "id": "T-AI-05",
+  "title": "LLM summary cites only the customer’s real orders",
+  "status": "BLOCKED",
+  "evidence": "LLM call failed: LLM request failed (404): {\"error\":{\"message\":\"The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.\",\"type\":\"invalid_request_erro"
+ },
+ {
+  "id": "T-ARCH-02",
+  "title": "No WooCommerce credentials or direct WooCommerce URLs in frontend code",
+  "status": "FAIL",
+  "evidence": "client/src/pages/Settings.tsx:94:            <li>Set <code>WOO_STORE_URL</code>, <code>WOO_CONSUMER_KEY</code>, <code>WOO_CONSUMER_SECRET</code>.</li>\nclient/src/pages/Settings.tsx:95:            <li>Settings → Advanced → Webhooks: add <code>order.created/updated</code> and <code>customer.created/updated</code> pointing at the endpoint, with secret <code>WOO_WEBHOOK_SECRET</code>.</li>"
+ }
+]

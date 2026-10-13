@@ -1,0 +1,38 @@
+
+> woopulse-crm@1.0.0 build
+> npm run build -w client && npm run build -w server
+
+
+> @woopulse/client@1.0.0 build
+> tsc --noEmit && vite build
+
+[36mvite v8.3.4 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 2044 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.81 kB │ gzip:   0.47 kB
+dist/assets/index-BeAMr1Xu.css   30.98 kB │ gzip:   6.61 kB
+dist/assets/index-COtfEwSf.js   360.50 kB │ gzip: 109.54 kB
+
+[32m✓ built in 2.07s[39m
+
+> @woopulse/server@1.0.0 build
+> prisma generate && tsc -p tsconfig.build.json
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Error: 
+EPERM: operation not permitted, rename '<repo>\node_modules\.prisma\client\query_engine-windows.dll.node.tmp24532' -> '<repo>\node_modules\.prisma\client\query_engine-windows.dll.node'
+
+
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path <repo>\server
+npm error workspace @woopulse/server@1.0.0
+npm error location <repo>\server
+npm error command failed
+npm error command C:\Windows\system32\cmd.exe /d /s /c prisma generate && tsc -p tsconfig.build.json

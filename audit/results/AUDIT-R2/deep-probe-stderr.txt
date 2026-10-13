@@ -1,0 +1,3 @@
+[queue] onFailed handler error for job 1: Error: db down
+    at Object.onFailed (<repo>\audit\probes\deep-probe.mts:41:181)
+    at JobQueue.drain (<repo>\server\src\lib\job-queue.ts:65:34)

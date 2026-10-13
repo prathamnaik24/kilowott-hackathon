@@ -1,0 +1,51 @@
+[webhook] event cmv6kylk4007dv8do6bshidvt failed permanently: PrismaClientKnownRequestError: 
+Invalid `prisma.customer.create()` invocation in
+<repo>\server\src\modules\sync\ingest.service.ts:59:42
+
+  56   });
+  57   return { customer, created: false };
+  58 }
+→ 59 const customer = await prisma.customer.create(
+Unique constraint failed on the fields: (`email`)
+    at ei.handleRequestError (<repo>\node_modules\@prisma\client\src\runtime\RequestHandler.ts:228:13)
+    at ei.handleAndLogRequestError (<repo>\node_modules\@prisma\client\src\runtime\RequestHandler.ts:174:12)
+    at ei.request (<repo>\node_modules\@prisma\client\src\runtime\RequestHandler.ts:143:12)
+    at async a (<repo>\node_modules\@prisma\client\src\runtime\getPrismaClient.ts:833:24)
+    at async upsertCustomer (<repo>\server\src\modules\sync\ingest.service.ts:59:20)
+    at async resolveOrderCustomer (<repo>\server\src\modules\sync\ingest.service.ts:75:11)
+    at async upsertWooOrder (<repo>\server\src\modules\sync\ingest.service.ts:86:20)
+    at async applyEvent (<repo>\server\src\modules\webhooks\webhook.service.ts:59:17)
+    at async processWebhookEvent (<repo>\server\src\modules\webhooks\webhook.service.ts:90:15)
+    at async JobQueue.drain (<repo>\server\src\lib\job-queue.ts:57:11) {
+  code: 'P2002',
+  meta: { modelName: 'Customer', target: [ 'email' ] },
+  clientVersion: '6.19.3'
+}
+[webhook] event cmv6kynf4007wv8dou98seytz failed permanently: PrismaClientKnownRequestError: 
+Invalid `prisma.customer.update()` invocation in
+<repo>\server\src\modules\sync\ingest.service.ts:51:44
+
+  48 
+  49 if (existing) {
+  50   // Never downgrade a registered customer to guest because of a later guest order.
+→ 51   const customer = await prisma.customer.update(
+Unique constraint failed on the fields: (`email`)
+    at ei.handleRequestError (<repo>\node_modules\@prisma\client\src\runtime\RequestHandler.ts:228:13)
+    at ei.handleAndLogRequestError (<repo>\node_modules\@prisma\client\src\runtime\RequestHandler.ts:174:12)
+    at ei.request (<repo>\node_modules\@prisma\client\src\runtime\RequestHandler.ts:143:12)
+    at async a (<repo>\node_modules\@prisma\client\src\runtime\getPrismaClient.ts:833:24)
+    at async upsertCustomer (<repo>\server\src\modules\sync\ingest.service.ts:51:22)
+    at async applyEvent (<repo>\server\src\modules\webhooks\webhook.service.ts:54:37)
+    at async processWebhookEvent (<repo>\server\src\modules\webhooks\webhook.service.ts:90:15)
+    at async JobQueue.drain (<repo>\server\src\lib\job-queue.ts:57:11) {
+  code: 'P2002',
+  meta: { modelName: 'Customer', target: [ 'email' ] },
+  clientVersion: '6.19.3'
+}
+[webhook] event cmv6l71m6008tv8dozm8dup5y failed permanently: TypeError: Cannot read properties of undefined (reading 'email')
+    at mapGuestCustomerFromOrder (<repo>\server\src\integrations\woocommerce\woocommerce.mapper.ts:43:37)
+    at resolveOrderCustomer (<repo>\server\src\modules\sync\ingest.service.ts:75:32)
+    at upsertWooOrder (<repo>\server\src\modules\sync\ingest.service.ts:86:26)
+    at applyEvent (<repo>\server\src\modules\webhooks\webhook.service.ts:59:23)
+    at processWebhookEvent (<repo>\server\src\modules\webhooks\webhook.service.ts:90:21)
+    at async JobQueue.drain (<repo>\server\src\lib\job-queue.ts:57:11)

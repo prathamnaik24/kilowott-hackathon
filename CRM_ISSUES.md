@@ -4,7 +4,31 @@
 >
 > **Classification:** **Confirmed (reproduced)** = observed failing in R1 with the evidence cited. **Confirmed (inspection)** = deterministic code path read and verified, but not executed. **Suspected** = plausible but not demonstrated. **Missing requirement (MR)** = specified but not implemented. **Environment blocker (ENV)** = the test could not run in this environment.
 
-## Latest audit summary
+## Latest audit summary — AUDIT-R2
+
+| Field | Value |
+|---|---|
+| Run | **AUDIT-R2** (previous: R1) |
+| Commit / branch | `8de77fe2e0ff0896458a49570c319eab263fe7ca` / `main` (clean) |
+| Date | 2026-10-13, 11:08–11:40 UTC |
+| Mode | Read-only. Isolated throwaway SQLite DBs in the session scratchpad; API on :4100 (and :4101 for the Redis-down probe). Developer DB and running instance untouched. |
+| Existing suite | `npm test` **47/47**; typecheck exit 0; build exit 1 (environmental EPERM on Prisma DLL locked by the running dev server; server `tsc` alone exit 0) |
+| Probes executed | 72 (R1 API 47 + R1 deep 7 + R2 API 9 + R2 deep 7 + LLM 2 + Redis-down 1 manual + wf-count ×2 not counted). Raw: 55 PASS / 15 FAIL / 1 BLOCKED / 1 NEEDS REVIEW; after review T-ARCH-02 FAIL→PASS, T-CUSTOMER-02 PASS→NEEDS REVIEW, HTTP T-QUEUE-06 superseded by service-level T-QUEUE-06. Evidence: `audit/results/AUDIT-R2/` |
+| Matrix | **124 rows: 70 PASS · 36 FAIL · 9 BLOCKED · 1 NOT RUN · 2 NOT APPLICABLE · 6 NEEDS REVIEW** (verified by parsing `CRM_AUDIT_PLAN.md`) |
+| Resolved and verified in R2 | AUD-001, AUD-002, AUD-004, AUD-015, AUD-016 (regressions held: no reopened issues) |
+| New in R2 | **AUD-020** (HIGH, P0) default LLM model retired by provider · **AUD-021** (HIGH, P0) copilot aborts on provider tool-schema validation · **AUD-022** (HIGH, P0) webhooks hang when `REDIS_URL` is set but Redis is down · **AUD-023** (MEDIUM, P1) architecture doc outdated · **MR-11** single BullMQ queue · **ENV-06** no Redis |
+| Open defects | 18 at end of R2 → **16 after post-R2 fixes** (AUD-020, AUD-022 resolved): 2 HIGH (AUD-003, AUD-021) · 9 MEDIUM · 5 LOW |
+
+### Verdict (AUDIT-R2): **FAIL**
+1. **Three open HIGH/P0 defects break the demo path**: the configured AI model no longer exists at Groq (AUD-020: summaries, drafts and copilot error in LLM mode), the copilot aborts on a common model output (AUD-021), and following the README quick start without Redis makes webhooks hang (AUD-022).
+2. **Data loss still possible**: a second guest order without an email is dropped (AUD-003, HIGH).
+3. **Specified requirements missing**: PostgreSQL (MR-01), migrations/seed (MR-02), Mailpit/SMTP (MR-04), delayed workflows (MR-05), encrypted credentials (MR-06), Playwright scenarios (MR-08), separate queues (MR-11).
+4. **Redis/BullMQ is implemented but has never been executed** against a Redis server (ENV-06), so no Redis claim can be marked PASS.
+
+**Demo-ready?** *Conditionally.* With `LLM_MODEL=openai/gpt-oss-120b` set in `server/.env` and `REDIS_URL` left empty, the core demo path (sync → signed webhook → status history → workflow → AI summary/draft with approval) passes in this run. The copilot (AUD-021) and any live-Redis claim are **not** demo-safe.
+**Production-ready?** **No.** Deployment, operational security, monitoring, backup/recovery were not evaluated, and AUD-009/AUD-010 (mock store on by default and default secrets accepted in production) are open.
+
+## R1 audit summary (historical)
 
 | Field | Value |
 |---|---|
@@ -175,7 +199,7 @@ This audit makes **no production-readiness claim**. Operational security, monito
 - **Dates:** 2026-10-13 (R1).
 
 ### AUD-015 — Stored webhook errors expose internal details in the UI
-- **Severity:** Low · **Priority:** P3 · **Status:** 🟡 Fix implemented, NOT yet verified · **Confirmed (reproduced)**
+- **Severity:** Low · **Priority:** P3 · **Status:** ✅ Resolved (verified AUDIT-R2 by probes T-SEC-06 and T-QUEUE-05; no unit regression test yet) · **Confirmed (reproduced)**
 - **Affected requirements:** WEBHOOK-07, SEC-05 (UI side)
 - **Actual:** `/api/store` `recentEvents[].error` contains raw Prisma invocation text, including the absolute server path `D:\kilowott hackathon\server\src\modules\sync\ingest.service.ts:51:44` and source excerpts. It is shown on the Sync health page to any authenticated user.
 - **Suggested fix:** store a sanitized message (error code + short reason) and log the full error server-side only.
@@ -212,6 +236,115 @@ This audit makes **no production-readiness claim**. Operational security, monito
 - **Regression test:** stub the LLM to return a fake source and assert it is removed or flagged.
 - **Dates:** suspected 2026-10-13 (R1).
 
+### AUDIT-R2 status updates for existing issues
+
+| Issue | R2 result | Last reproduced | Status after R2 |
+|---|---|---|---|
+| AUD-001 | Regression held (env-loading tests pass; `server/.env` LLM key reached config) | — | RESOLVED |
+| AUD-002 | Regression held (T-WORKFLOW-03/04 PASS) | — | RESOLVED |
+| AUD-003 | Reproduced (T-CUSTOMER-06) | 2026-10-13 R2 | OPEN · HIGH · P0 |
+| AUD-004 | Regression held (T-QUEUE-02 PASS) | — | RESOLVED |
+| AUD-005 | Reproduced (T-WOO-06) | 2026-10-13 R2 | OPEN · MEDIUM · P1 |
+| AUD-006 | Reproduced (T-WOO-07) | 2026-10-13 R2 | OPEN · MEDIUM · P1 |
+| AUD-007 | Reproduced (T-CUSTOMER-03); error text now sanitized | 2026-10-13 R2 | OPEN · MEDIUM · P1 |
+| AUD-008 | Reproduced (T-DB-02, P2002) | 2026-10-13 R2 | OPEN · MEDIUM · P2 |
+| AUD-009 | Reproduced (T-SEC-11) **and** T-ARCH-09: `NODE_ENV=production` enables the mock by default | 2026-10-13 R2 | OPEN · MEDIUM · P1 |
+| AUD-010 | Now **confirmed by execution** (T-SEC-13): production config accepts default JWT, webhook secret and admin password | 2026-10-13 R2 | OPEN · MEDIUM · P1 |
+| AUD-011 | Reproduced (T-ORDER-04) | 2026-10-13 R2 | OPEN · MEDIUM · P2 |
+| AUD-012 | Reproduced (T-SEC-07) | 2026-10-13 R2 | OPEN · LOW · P2 |
+| AUD-013 | Reproduced (T-SEC-08) | 2026-10-13 R2 | OPEN · LOW · P2 |
+| AUD-014 | Reproduced (T-DB-01) | 2026-10-13 R2 | OPEN · LOW · P2 |
+| AUD-015 | Verified fixed (sanitized messages) | — | RESOLVED |
+| AUD-016 | Regression held (T-SEC-03 429; T-SEC-03b correct password refused while locked) | — | RESOLVED |
+| AUD-017 | Reproduced (T-SEC-04) | 2026-10-13 R2 | OPEN · LOW · P2 |
+| AUD-018 | Unchanged (inspection) | 2026-10-13 R2 | OPEN · LOW · P2 |
+| AUD-019 | Upgraded from *suspected* to **confirmed (inspection)**: no validation of model `sources` in `ai.service.ts`; this run's sources happened to be valid (T-AI-05) | 2026-10-13 R2 | OPEN · MEDIUM · P1 |
+
+## New issues (AUDIT-R2)
+
+## AUD-020: Default LLM model no longer available at the configured provider
+
+- Severity: HIGH
+- Priority: P0
+- Status: RESOLVED (2026-10-13, post-R2 fix; verified live: summary generatedBy=llm, sources #5036/#5001 = real orders)
+- First discovered: 2026-10-13
+- Last reproduced: 2026-10-13
+- Resolved: N/A
+- Affected requirements: AI-03, AI-11, DOCS-05
+- Audit run: AUDIT-R2
+- Evidence: `audit/results/AUDIT-R2/r2-deep-probe-results.json` (T-AI-05 BLOCKED, provider 404); model listing via `GET /models` (key not printed)
+- Reproduction steps:
+1. Set a valid Groq key in `server/.env`, leave `LLM_MODEL` unset.
+2. `POST /api/ai/customers/:id/summary` (or draft / copilot).
+- Expected behavior: AI features work with the documented default configuration.
+- Actual behavior: `LLM request failed (404): The model llama-3.3-70b-versatile does not exist or you do not have access to it` → HTTP 500 to the UI. Models available to the key include `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`.
+- Root cause: Confirmed — hard-coded default `LLM_MODEL=llama-3.3-70b-versatile` (`env.ts`, `.env.example`, README) was retired by the provider.
+- Suggested fix: set `LLM_MODEL=openai/gpt-oss-120b` in `server/.env` now; change the default and docs; map LLM provider errors to a 502 with a clear message instead of a generic 500.
+- Regression test: config/doc check that the default model appears in the provider's `/models` list (live, optional) plus a unit test that a provider 4xx becomes a user-facing 502.
+- Verification command: `LLM_MODEL=openai/gpt-oss-120b npx tsx audit/probes/r2-llm-grounding.mts` (T-AI-05 PASS in R2 with this override)
+
+## AUD-021: Copilot aborts when the model emits null for an optional tool argument
+
+- Severity: HIGH
+- Priority: P0
+- Status: OPEN
+- First discovered: 2026-10-13
+- Last reproduced: 2026-10-13
+- Resolved: N/A
+- Affected requirements: AI-10
+- Audit run: AUDIT-R2
+- Evidence: `audit/results/AUDIT-R2/llm-grounding-results.json` (T-AI-09)
+- Reproduction steps:
+1. `LLM_MODEL=openai/gpt-oss-120b`.
+2. Ask the copilot "Which orders are most at risk right now?"
+- Expected behavior: the agent calls `get_at_risk_orders` and answers.
+- Actual behavior: provider returns 400 `tool_use_failed`: `/customerId: expected string, but got null`; `runCopilot` throws and the whole request fails.
+- Root cause: Confirmed — optional parameters are declared as plain `string` in the JSON schema (and `z.string().optional()` rejects null), and provider-side tool-validation errors are not caught or retried.
+- Suggested fix: declare optional params as `["string","null"]` / `z.string().nullish()`; catch `tool_use_failed` and retry once with the error fed back to the model; return a friendly message instead of 500.
+- Regression test: unit test with a stubbed LLM returning `{"customerId": null}` → tool runs; stubbed 400 `tool_use_failed` → graceful answer.
+- Verification command: `LLM_MODEL=openai/gpt-oss-120b npx tsx audit/probes/r2-llm-grounding.mts` (T-AI-09 must PASS)
+
+## AUD-022: Webhook requests hang when REDIS_URL is set but Redis is unreachable
+
+- Severity: HIGH
+- Priority: P0
+- Status: RESOLVED (2026-10-13, post-R2 fix; verified: webhook 202 in 1.0 s and sync health 200 in 1.0 s with Redis unreachable; regression test tests/integration/redis-unavailable.test.ts)
+- First discovered: 2026-10-13
+- Last reproduced: 2026-10-13
+- Resolved: N/A
+- Affected requirements: WEBHOOK-10, DOCS-01, DOCS-05, ARCH-03
+- Audit run: AUDIT-R2
+- Evidence: `audit/results/AUDIT-R2/redis-unavailable-probe.txt`
+- Reproduction steps:
+1. Start the API with `REDIS_URL=redis://localhost:6379` and no Redis running (exactly what the README quick start produces, because `.env.example` now sets `REDIS_URL`).
+2. Send a validly signed `order.created` webhook.
+- Expected behavior: event persisted as PENDING and acknowledged (README: "if Redis is down, events wait as PENDING and a sweeper re-queues them").
+- Actual behavior: no HTTP response within 10 s (WooCommerce would time out, retry, and eventually disable the webhook). Login still works (rate limiter fails open).
+- Root cause: Confirmed by code — the Redis client uses `maxRetriesPerRequest: null` with the offline queue enabled, so `queue.add()` never rejects while disconnected; `acceptWebhook` awaits it without a timeout.
+- Suggested fix: wrap `enqueue` in `withTimeout` (e.g. 500 ms) so the existing "left PENDING" path runs; give the producer `Queue` a connection with `enableOfflineQueue: false`; ship `.env.example` with `REDIS_URL` empty.
+- Regression test: integration test with `REDIS_URL` pointing at a closed port → webhook returns 202 within 1 s and the event is PENDING.
+- Verification command: re-run the Redis-down probe (see `CRM_AUDIT_PLAN.md` commands) — expect 202.
+
+## AUD-023: Architecture document describes the pre-Redis design
+
+- Severity: MEDIUM
+- Priority: P1
+- Status: OPEN
+- First discovered: 2026-10-13
+- Last reproduced: 2026-10-13
+- Resolved: N/A
+- Affected requirements: DOCS-02
+- Audit run: AUDIT-R2
+- Evidence: `docs/architecture.md` "Scaling path" table lists "In-process JobQueue" as current and BullMQ as future; component table has no worker, cache or rate limiter
+- Reproduction steps:
+1. Compare `docs/architecture.md` with `server/src/queues/webhook-queue.ts`, `server/src/worker.ts`, `server/src/lib/cache.ts`.
+- Expected behavior: documentation matches the implementation.
+- Actual behavior: outdated.
+- Root cause: Confirmed — doc not updated with the Redis work.
+- Suggested fix: update the components table, sequence diagram (API → Redis → worker) and scaling table.
+- Regression test: N/A (manual doc review in each audit run).
+- Verification command: manual review.
+
 ---
 
 ## Missing requirements (specified, not implemented)
@@ -229,6 +362,7 @@ Most of these were deliberate scope cuts made for the 4-hour hackathon (see the 
 | MR-07 | Partial-sync handling and `PARTIAL` sync status | Whole-import try/catch | Medium | WOO-08 |
 | MR-08 | Playwright scenarios (both required), frontend component tests, per-workflow failure tests | None | High (Definition of Done §5.3) | TEST-02…04, WORKFLOW-07, AUTH-06, UI-* |
 | MR-09 | `WORKFLOW_RUN` activity per execution | Only WorkflowRun + action activities | Low | WORKFLOW-08 |
+| MR-11 | Separate BullMQ queues for webhooks, workflows and sync (AUDIT-R2 spec) | One queue; workflows run inside the webhook job; full sync runs inside the HTTP request | Medium | QUEUE-08 |
 | MR-10 | Docs set: `api.md`, `data-model.md`, `woocommerce-setup.md`, `workflows.md`, `ai-agent.md`, `testing.md`, `deployment.md`, `demo-script.md` | Only `architecture.md` plus the README | Low | DOCS-03 |
 
 ## Blocked and untested requirements
@@ -239,6 +373,7 @@ Most of these were deliberate scope cuts made for the 4-hour hackathon (see the 
 | ENV-02 | `concurrently` absent from `node_modules` in this working copy (the lockfile includes it) | ARCH-04, DOCS-01 | `npm install` at the repo root, then re-run `npm run dev` |
 | ENV-03 | No LLM API key available | AI-03, AUD-019 verification | Provide a key **as a real environment variable** (until AUD-001 is fixed) and run grounding probes |
 | ENV-04 | No browser automation installed | AUTH-06, CUSTOMER-07, UI-02, UI-04, UI-05 | Add Playwright (MR-08) |
+| ENV-06 | No Redis server available (Docker unusable; not installed in WSL) — added AUDIT-R2 | ARCH-03, QUEUE-05, all BullMQ/Redis-cache/rate-limit-in-Redis claims | `docker compose up -d redis` once Docker works, or `sudo apt install redis-server` in WSL |
 | ENV-05 | No real WordPress/WooCommerce store | WOO-10 | InstaWP or a local WordPress container |
 
 **NOT RUN (runnable, not executed in R1):** WEBHOOK-08 (retry endpoint), QUEUE-04 (PENDING resume after restart), ORDER-06 (filter correctness), WORKFLOW-09 (import triggers no workflows).
@@ -250,6 +385,8 @@ None. R1 is the first audit run.
 
 | Issue | Fix | Regression test | Verified | Result |
 |---|---|---|---|---|
+| AUD-022 | Every producer-side BullMQ call (`add`, `getJob`, `retry`, `getJobCounts`) bounded by a 1 s timeout; on timeout the event stays PENDING for the sweeper; requeue loop tolerates queue errors; `.env.example` ships `REDIS_URL` empty | `tests/integration/redis-unavailable.test.ts` (child process, `REDIS_URL` → closed port: PENDING, < 2.5 s) | 2026-10-13 post-R2; suite 48/48; HTTP re-probe 202 in 1.0 s | Resolved |
+| AUD-020 | Default `LLM_MODEL` → `openai/gpt-oss-120b` (env.ts, .env.example); developer `.env` model line updated | Live call (no automated test: provider-dependent) | 2026-10-13 post-R2: summary `generatedBy: llm`, grounded sources | Resolved (provider error → 502 mapping still TODO) |
 | AUD-001 | `env.ts` loads `server/.env` (or `ENV_FILE`) with `process.loadEnvFile` **before** parsing; real environment variables still take precedence | `tests/unit/env-loading.test.ts` (file values applied; process env overrides file) — spawns a fresh Node process per case | 2026-10-13, uncommitted working tree on top of `37b564f`; full suite **40/40 pass** | Resolved. Matrix row ARCH-08 → PASS on next full audit run |
 
 | AUD-004 | `JobQueue.drain()` wraps `onFailed` in try/catch and resets `running` in `finally` | `tests/unit/job-queue.test.ts` › *keeps processing after the failure handler itself throws* | 2026-10-13, suite 47/47 | Resolved. With Redis, BullMQ now owns retries; its `failed` handler is also guarded. |
@@ -263,6 +400,19 @@ None. R1 is the first audit run.
 > Authorised implicitly by the owner request to connect a local WooCommerce store via `.env` (`WOO_STORE_URL`), which cannot work while AUD-001 is open. All other issues remain open pending authorisation.
 
 ## Prioritized remediation plan
+
+### AUDIT-R2 (current)
+| Order | Items | Why | Est. |
+|---|---|---|---|
+| 0 (config only, no code) | Set `LLM_MODEL=openai/gpt-oss-120b` in `server/.env`; keep `REDIS_URL` empty unless Redis is actually running | Unblocks AUD-020 for the demo and avoids AUD-022 | 1 min |
+| 1 | AUD-022, AUD-020 (code default + 502 mapping), AUD-021 | P0: demo-path failures | 30 min |
+| 2 | AUD-003 | HIGH: data loss | 15 min |
+| 3 | AUD-009, AUD-010 | Required before any public deployment | 20 min |
+| 4 | AUD-005, AUD-006, AUD-007, AUD-019, AUD-023 | Integration resilience, AI grounding, docs | 60 min |
+| 5 | AUD-008, AUD-011…AUD-014, AUD-017, AUD-018 | Correctness/polish | 60 min |
+| 6 | MR-08 Playwright (2 scenarios), then owner decision on MR-01…07, MR-09…11 | Definition of Done | — |
+
+### R1 plan (historical)
 
 | Order | Items | Rationale | Est. effort |
 |---|---|---|---|
@@ -282,6 +432,16 @@ Each fix must add the regression test listed on its issue and re-run the full au
 
 | Run | Date (UTC) | Commit | Suite | Probes (P/F/NR) | Matrix (P/F/B/NR/NA/NRV) | New issues | Resolved | Verdict |
 |---|---|---|---|---|---|---|---|---|
+| AUDIT-R2 | 2026-10-13 | `8de77fe` | 47/47 | 55 / 15 / 1 BLOCKED / 1 NRV (raw) | 70 / 36 / 9 / 1 / 2 / 6 | AUD-020…AUD-023, MR-11, ENV-06 | AUD-001, 002, 004, 015, 016 (verified) | **FAIL** |
 | R1 | 2026-10-13 | `37b564f` | 38/38 | 37 / 16 / 1 | 50 / 35 / 4 / 9 / 2 / 5 | AUD-001…AUD-019, MR-01…MR-10, ENV-01…ENV-05 | — | **FAIL** |
 
 **Count verification (R1):** probe totals were re-derived from `audit/results/R1/*.json` (47 + 7 = 54 checks; 38 + 0 raw passes; one reclassification). Matrix totals were re-derived by parsing every requirement row's status column in `CRM_AUDIT_PLAN.md` (105 rows).
+
+
+## Final verdict (AUDIT-R2): **FAIL**
+
+- **Reason:** open HIGH/P0 defects on the demo path (AUD-020 default LLM model retired, AUD-021 copilot aborts, AUD-022 webhooks hang with an unreachable Redis), a HIGH data-loss defect (AUD-003), and unimplemented specified requirements (MR-01, MR-02, MR-04, MR-05, MR-06, MR-08, MR-11).
+- **Open critical/high:** 0 critical; HIGH: AUD-003, AUD-020, AUD-021, AUD-022.
+- **Blocked / unexecuted:** PostgreSQL, Redis/BullMQ execution, Docker build, real WooCommerce store, all browser/Playwright UI checks (ENV-01/04/05/06); NOT RUN: QUEUE-04 (PENDING resume after restart).
+- **Demo-ready:** conditionally, with the config workaround above and without demonstrating the copilot or live Redis.
+- **Production-ready:** no; not evaluated for deployment, monitoring, backup/recovery or operational security, and AUD-009/AUD-010 are open.

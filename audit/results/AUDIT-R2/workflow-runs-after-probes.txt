@@ -1,0 +1,9 @@
+on-hold-apology            runs 1 statuses SUCCESS
+completed-review-request   runs 1 statuses SUCCESS
+vip-order                  runs 3 statuses SUCCESS
+cancelled-retention        runs 1 statuses SUCCESS
+welcome-new-customer       runs 1 statuses SUCCESS
+audit-bogus                runs 1 statuses FAILED
+audit-after                runs 1 statuses SUCCESS
+WORKFLOW-type activities: 0
+Events by status: [{"_count":{"_all":3},"status":"FAILED"},{"_count":{"_all":1},"status":"IGNORED"},{"_count":{"_all":8},"status":"PROCESSED"}]

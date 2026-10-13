@@ -1,0 +1,18 @@
+branch: main
+commit: 8de77fe2e0ff0896458a49570c319eab263fe7ca
+status:
+utc: 2026-10-13T11:08:16Z
+node: v24.15.0
+npm: 11.12.1
+prisma: 6.19.3
+bullmq: 6.3.14
+provider:   provider = "prisma-client-js"
+2:// SQLite keeps the demo zero-infrastructure; switch `provider` to "postgresql"
+6:  provider = "prisma-client-js"
+10:  provider = "sqlite"
+lint script: none
+playwright: 0
+docker: 
+migrations dir: ls: cannot access 'server/prisma/migrations': No such file or directory
+server/.env REDIS_URL set: 0
+server/.env LLM key set: 1

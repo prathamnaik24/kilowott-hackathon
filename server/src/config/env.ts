@@ -49,7 +49,8 @@ const EnvSchema = z.object({
   /** Any OpenAI-compatible endpoint: Groq (default), OpenAI, Ollama, ... */
   LLM_BASE_URL: z.string().default('https://api.groq.com/openai/v1'),
   LLM_API_KEY: z.string().default(''),
-  LLM_MODEL: z.string().default('llama-3.3-70b-versatile'),
+  /** Groq-hosted (verified 2026-10-13). Groq retired llama-3.3-70b-versatile (AUD-020). */
+  LLM_MODEL: z.string().default('openai/gpt-oss-120b'),
 
   ADMIN_EMAIL: z.string().default('admin@woopulse.dev'),
   ADMIN_PASSWORD: z.string().default('demo1234'),

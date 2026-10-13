@@ -1,0 +1,44 @@
+[
+ {
+  "id": "T-CUSTOMER-06",
+  "title": "Second guest order without email is ingested (not lost)",
+  "status": "FAIL",
+  "evidence": "order 990012 in CRM: false; webhook event status FAILED, attempts 3, error: Conflicting record: a unique field (e.g. email) is already used by another record"
+ },
+ {
+  "id": "T-WORKFLOW-03",
+  "title": "A failing workflow does not prevent other matching workflows from running",
+  "status": "PASS",
+  "evidence": "audit-after runs 1, review-request runs 1"
+ },
+ {
+  "id": "T-WORKFLOW-04",
+  "title": "A broken workflow produces a FAILED WorkflowRun / visible failure",
+  "status": "PASS",
+  "evidence": "bogus runs 1; event status PROCESSED after 1 attempts"
+ },
+ {
+  "id": "T-QUEUE-02",
+  "title": "Queue keeps processing after a failure-handler error",
+  "status": "PASS",
+  "evidence": "processed after failing onFailed: [good]; unhandled rejections: 0; queue size 0"
+ },
+ {
+  "id": "T-WOO-06",
+  "title": "WooCommerce requests time out instead of hanging",
+  "status": "FAIL",
+  "evidence": "still pending after 8s (8004ms)"
+ },
+ {
+  "id": "T-WOO-07",
+  "title": "Transient network errors are retried with backoff",
+  "status": "FAIL",
+  "evidence": "fetch attempts on network error: 1"
+ },
+ {
+  "id": "T-DB-02",
+  "title": "Concurrent upserts of the same new customer both succeed",
+  "status": "FAIL",
+  "evidence": "1 of 2 rejected: P2002"
+ }
+]

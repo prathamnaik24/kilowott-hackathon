@@ -1,0 +1,4 @@
+AUDIT-R2 redis-unavailable probe (isolated server :4101, REDIS_URL=redis://localhost:6379, no Redis running)
+webhook order.created (valid signature) -> HTTP 000 (no response) after 10.0s client timeout
+login -> HTTP 200 after 0.77s (rate limiter fails open)
+server log: Queue: bullmq; repeated [redis] connection errors

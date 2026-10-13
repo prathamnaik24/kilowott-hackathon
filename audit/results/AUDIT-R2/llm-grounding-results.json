@@ -1,0 +1,14 @@
+[
+ {
+  "id": "T-AI-05",
+  "title": "LLM summary cites only the customer’s real orders (model override openai/gpt-oss-120b)",
+  "status": "PASS",
+  "evidence": "sources [#5036,#5001] real [#5001,#5036] invalid []; summary: Priya Sharma from Mumbai has placed two orders in the past month, spending a total of $1,328.50. Her first order on Sep 18 was completed, while the most recent order on Oct 11 is on‑hold."
+ },
+ {
+  "id": "T-AI-09",
+  "title": "Copilot calls typed CRM tools and answers (LLM mode)",
+  "status": "FAIL",
+  "evidence": "tools: ; answer: ERROR: LLM request failed (400): {\"error\":{\"message\":\"Tool call validation failed: tool call validation failed: parameters for tool get_at_risk_orders did not match schema: errors: [`/customerId`: exp"
+ }
+]
