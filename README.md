@@ -465,7 +465,7 @@ WooPulse is a working, tested prototype; it is **not** presented as production-r
 | Document | Contents |
 |---|---|
 | [`conclusions.md`](conclusions.md) | How everything works end to end: data sources, storage, security, Redis, flows, and a 3-minute demo script |
-| [`docs/architecture.md`](docs/architecture.md) | Component responsibilities, webhook sequence, ER diagram, AI agent design |
+| [`docs/architecture.md`](docs/architecture.md) | Processes, components, Redis usage, retry safety, webhook sequence, ER diagram, AI agent design, deployment topology |
 | [`docs/video-talking-points.md`](docs/video-talking-points.md) | Rationale behind every technology choice |
 | [`CRM_AUDIT_PLAN.md`](CRM_AUDIT_PLAN.md) | Requirement-to-test traceability matrix |
 | [`CRM_ISSUES.md`](CRM_ISSUES.md) | Defects, fixes, verification history and remediation plan |

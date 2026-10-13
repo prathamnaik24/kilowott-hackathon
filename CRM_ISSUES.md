@@ -329,7 +329,7 @@ This audit makes **no production-readiness claim**. Operational security, monito
 
 - Severity: MEDIUM
 - Priority: P1
-- Status: OPEN
+- Status: RESOLVED (2026-10-13: docs/architecture.md rewritten: processes, Redis usage, queue drivers, retry safety, updated sequence and ER diagrams, deployment topology; verified by manual review against the source)
 - First discovered: 2026-10-13
 - Last reproduced: 2026-10-13
 - Resolved: N/A
