@@ -1,11 +1,17 @@
 import { Router } from 'express';
+import { CacheKeys, getOrSet } from '../../lib/cache.js';
 import { prisma } from '../../lib/db.js';
 import { REVENUE_STATUSES, round2 } from '../customers/customer.metrics.js';
 import { findAtRiskOrders } from '../risk/risk.service.js';
 
 export const dashboardRouter = Router();
 
+/** Cached for 30s (cache-aside); the worker invalidates it whenever a webhook changes data. */
 dashboardRouter.get('/', async (_req, res) => {
+  res.json({ data: await getOrSet(CacheKeys.dashboard, 30, computeDashboard) });
+});
+
+async function computeDashboard() {
   const [customerCount, byStatus, recentOrders, openTasks, recentRuns, atRisk] = await Promise.all([
     prisma.customer.count(),
     prisma.order.groupBy({ by: ['status'], _count: { _all: true }, _sum: { total: true } }),
@@ -29,13 +35,11 @@ dashboardRouter.get('/', async (_req, res) => {
   );
   const orderCount = byStatus.reduce((sum, s) => sum + s._count._all, 0);
 
-  res.json({
-    data: {
-      kpis: { customers: customerCount, orders: orderCount, revenue, openTasks, atRisk: atRisk.length },
-      ordersByStatus,
-      recentOrders,
-      recentRuns,
-      atRisk: atRisk.slice(0, 6),
-    },
-  });
-});
+  return {
+    kpis: { customers: customerCount, orders: orderCount, revenue, openTasks, atRisk: atRisk.length },
+    ordersByStatus,
+    recentOrders,
+    recentRuns,
+    atRisk: atRisk.slice(0, 6),
+  };
+}

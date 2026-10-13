@@ -11,7 +11,9 @@
     "db:reset": "prisma db push --force-reset",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "simulate": "tsx scripts/simulate-webhook.ts"
+    "simulate": "tsx scripts/simulate-webhook.ts",
+    "worker": "node dist/worker.js",
+    "worker:dev": "tsx watch src/worker.ts"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
@@ -19,8 +21,10 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.3.14",
     "cors": "^2.8.6",
     "express": "^5.3.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "zod": "^4.6.7"
   },

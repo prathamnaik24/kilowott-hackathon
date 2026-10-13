@@ -5,7 +5,9 @@ import { createApp } from '../../src/app.js';
 import { bootstrap } from '../../src/bootstrap.js';
 import { signWebhookBody } from '../../src/integrations/woocommerce/woocommerce.signature.js';
 import { prisma } from '../../src/lib/db.js';
-import { webhookQueue } from '../../src/modules/webhooks/webhook.service.js';
+import { processWebhookEvent, webhookQueue } from '../../src/modules/webhooks/webhook.service.js';
+import { resetMemoryRateLimits } from '../../src/lib/rate-limit.js';
+import { resetMemoryCache } from '../../src/lib/cache.js';
 import { wooCustomer, wooOrder } from '../fixtures/woo.js';
 
 const SECRET = 'test-webhook-secret';
@@ -43,7 +45,11 @@ beforeAll(async () => {
   await bootstrap();
 });
 
-beforeEach(resetData);
+beforeEach(async () => {
+  await resetData();
+  resetMemoryRateLimits();
+  resetMemoryCache();
+});
 
 describe('POST /api/webhooks/woocommerce', () => {
   it('acknowledges the WooCommerce creation ping', async () => {
@@ -113,6 +119,46 @@ describe('POST /api/webhooks/woocommerce', () => {
   });
 });
 
+describe('workflow failure isolation and retry safety (AUD-002)', () => {
+  it('runs other workflows when one is broken, records the failure, and never repeats side effects on retry', async () => {
+    const cond = JSON.stringify([{ field: 'order.newStatus', op: 'eq', value: 'completed' }]);
+    await prisma.workflow.create({ data: { key: 't-bogus', name: 'bogus', description: '', trigger: 'ORDER_STATUS_CHANGED', conditions: cond, actions: JSON.stringify([{ type: 'BOGUS' }]) } });
+    await prisma.workflow.create({ data: { key: 't-after', name: 'after', description: '', trigger: 'ORDER_STATUS_CHANGED', conditions: cond, actions: JSON.stringify([{ type: 'CREATE_TASK', title: 'after-task', body: '', dueInHours: 1 }]) } });
+    try {
+      await deliver('order.created', wooOrder());
+      await deliver('order.updated', wooOrder({ status: 'completed', date_modified_gmt: '2026-10-02T10:00:00' }));
+
+      const runs = await prisma.workflowRun.findMany({ include: { workflow: true } });
+      const byKey = (k: string) => runs.filter((r) => r.workflow.key === k);
+      expect(byKey('t-after').map((r) => r.status)).toEqual(['SUCCESS']);
+      expect(byKey('t-bogus').map((r) => r.status)).toEqual(['FAILED']);
+      expect(byKey('completed-review-request').map((r) => r.status)).toEqual(['SUCCESS']);
+
+      // Simulate a retry of the same event (e.g. worker crashed after running workflows).
+      const ev = await prisma.webhookEvent.findFirstOrThrow({ where: { topic: 'order.updated' } });
+      await prisma.webhookEvent.update({ where: { id: ev.id }, data: { status: 'PENDING' } });
+      await processWebhookEvent(ev.id, 2);
+      expect(await prisma.workflowRun.count()).toBe(runs.length);
+      expect(await prisma.activity.count({ where: { title: 'after-task' } })).toBe(1);
+    } finally {
+      await prisma.workflow.deleteMany({ where: { key: { in: ['t-bogus', 't-after'] } } });
+    }
+  });
+
+  it('re-dispatches a saved trigger when workflows crashed before running', async () => {
+    await deliver('order.created', wooOrder());
+    // Simulate: order update applied + outcome saved, but the worker died before workflows ran.
+    const evOutcome = { status: 'PROCESSED', trigger: null as unknown };
+    const order = await prisma.order.findFirstOrThrow();
+    evOutcome.trigger = { trigger: 'ORDER_STATUS_CHANGED', customerId: order.customerId, orderId: order.id, previousStatus: 'processing' };
+    await prisma.order.update({ where: { id: order.id }, data: { status: 'on-hold' } });
+    const ev = await prisma.webhookEvent.create({ data: { topic: 'order.updated', payload: '{}', outcome: JSON.stringify(evOutcome) } });
+    await processWebhookEvent(ev.id, 2);
+    const runs = await prisma.workflowRun.findMany({ where: { webhookEventId: ev.id }, include: { workflow: true } });
+    expect(runs.map((r) => r.workflow.key)).toEqual(['on-hold-apology']);
+  });
+});
+
 describe('API auth', () => {
   it('requires a token for CRM endpoints', async () => {
     expect((await request(app).get('/api/customers')).status).toBe(401);
@@ -131,6 +177,16 @@ describe('API auth', () => {
     const wf = await prisma.workflow.findFirstOrThrow();
     const toggle = await request(app).patch(`/api/workflows/${wf.id}`).set(auth).send({ isActive: false });
     expect(toggle.status).toBe(403);
+  });
+
+  it('locks out after repeated failures, even for the right password (rate limit)', async () => {
+    for (let i = 0; i < 5; i++) {
+      expect((await request(app).post('/api/auth/login').send({ email: 'admin@woopulse.dev', password: 'wrong' + i })).status).toBe(401);
+    }
+    const blocked = await request(app).post('/api/auth/login').send({ email: 'admin@woopulse.dev', password: 'wrong' });
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers['retry-after']).toBeDefined();
+    expect((await request(app).post('/api/auth/login').send({ email: 'admin@woopulse.dev', password: 'demo1234' })).status).toBe(429);
   });
 
   it('rejects bad credentials', async () => {

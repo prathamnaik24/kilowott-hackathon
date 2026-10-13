@@ -35,4 +35,21 @@ describe('JobQueue', () => {
     await q.onIdle();
     expect(calls).toBe(2);
   });
+
+  it('keeps processing after the failure handler itself throws (AUD-004)', async () => {
+    const processed: string[] = [];
+    const q = new JobQueue<string>(
+      async (d) => {
+        if (d === 'bad') throw new Error('boom');
+        processed.push(d);
+      },
+      { maxAttempts: 1, backoffMs: 1, onFailed: async () => { throw new Error('db down'); } },
+    );
+    q.enqueue('1', 'bad');
+    await q.onIdle();
+    q.enqueue('2', 'good');
+    await q.onIdle();
+    expect(processed).toEqual(['good']);
+    expect(q.size).toBe(0);
+  });
 });

@@ -1,4 +1,5 @@
 import { env, wooStoreUrl } from '../../config/env.js';
+import { invalidate } from '../../lib/cache.js';
 import { prisma } from '../../lib/db.js';
 import { createWooClient } from '../../integrations/woocommerce/index.js';
 import type { WooCommerceClient } from '../../integrations/woocommerce/woocommerce.client.js';
@@ -48,6 +49,7 @@ async function doSync(client: WooCommerceClient): Promise<SyncSummary> {
       where: { id: 'default' },
       data: { syncStatus: 'SUCCESS', lastSyncedAt: new Date() },
     });
+    await invalidate();
     return { customers: customers.length, orders: orders.length, durationMs: Date.now() - started };
   } catch (error) {
     await prisma.store.update({

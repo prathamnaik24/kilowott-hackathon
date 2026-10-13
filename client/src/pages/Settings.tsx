@@ -11,7 +11,9 @@ interface StoreHealth {
   storeUrl: string;
   mockAdminUrl: string | null;
   webhookEndpoint: string;
-  queueDepth: number;
+  queueDepth: number | null;
+  queue: { driver: 'bullmq' | 'in-process'; counts: { waiting: number; active: number; delayed: number; failed: number } | null };
+  cache: { driver: 'redis' | 'memory'; hits: number; misses: number };
   eventCounts: Record<string, number>;
   lastEventAt: string | null;
   recentEvents: Array<{ id: string; topic: string; resourceId: number | null; status: string; attempts: number; error: string | null; receivedAt: string }>;
@@ -68,7 +70,15 @@ export function SettingsPage() {
           <dl className="space-y-2 text-sm">
             <Row label="Endpoint"><code className="text-xs">{data.webhookEndpoint}</code></Row>
             <Row label="Last event">{data.lastEventAt ? timeAgo(data.lastEventAt) : 'never'}</Row>
-            <Row label="Queue depth">{data.queueDepth}</Row>
+            <Row label="Queue">{data.queue.driver === 'bullmq' ? 'BullMQ (Redis)' : 'In-process'}</Row>
+            <Row label="Queue depth">{data.queueDepth ?? 'unavailable'}</Row>
+            {data.queue.counts && data.queue.driver === 'bullmq' && (
+              <Row label="Jobs failed (Redis)">{data.queue.counts.failed}</Row>
+            )}
+            <Row label="Cache">
+              {data.cache.driver === 'redis' ? 'Redis' : 'In-memory'} · {data.cache.hits} hits / {data.cache.misses} misses
+              {data.cache.hits + data.cache.misses > 0 && ` (${Math.round((data.cache.hits / (data.cache.hits + data.cache.misses)) * 100)}% hit rate)`}
+            </Row>
             {Object.entries(data.eventCounts).map(([k, v]) => (
               <Row key={k} label={k.toLowerCase()}><span className={EVENT_STYLE[k]}>{v}</span></Row>
             ))}

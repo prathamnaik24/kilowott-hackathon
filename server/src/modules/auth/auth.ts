@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { prisma } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
+import { hitRateLimit, peekRateLimit, resetRateLimit } from '../../lib/rate-limit.js';
 
 export interface AuthUser {
   id: string;
@@ -49,12 +50,28 @@ const LoginSchema = z.object({ email: z.string().email(), password: z.string().m
 
 export const authRouter = Router();
 
+/** Brute-force protection: failed attempts per (IP, email), counted in Redis so all API instances share it. */
+export const LOGIN_MAX_FAILURES = 5;
+export const LOGIN_WINDOW_SECONDS = 15 * 60;
+
 authRouter.post('/login', async (req, res) => {
   const { email, password } = LoginSchema.parse(req.body);
+  const limitKey = `login:${req.ip}:${email.toLowerCase()}`;
+
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    const limit = await hitRateLimit(limitKey, LOGIN_MAX_FAILURES, LOGIN_WINDOW_SECONDS);
+    if (!limit.allowed) {
+      res.setHeader('Retry-After', String(limit.retryAfterSeconds));
+      throw new HttpError(429, `Too many failed login attempts. Try again in ${Math.ceil(limit.retryAfterSeconds / 60)} min.`);
+    }
     throw new HttpError(401, 'Invalid email or password');
   }
+  // A correct password does not bypass an active lockout (otherwise the limit only slows guessing).
+  if ((await peekRateLimit(limitKey)) >= LOGIN_MAX_FAILURES) {
+    throw new HttpError(429, 'Too many failed login attempts. Try again later.');
+  }
+  await resetRateLimit(limitKey);
   const authUser: AuthUser = { id: user.id, email: user.email, name: user.name, role: user.role as AuthUser['role'] };
   res.json({ token: signToken(authUser), user: authUser });
 });

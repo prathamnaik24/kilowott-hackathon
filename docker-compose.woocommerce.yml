@@ -1,0 +1,66 @@
+# Local WooCommerce TEST store for WooPulse — free, private, no hosted service or card required.
+#
+#   docker compose -f docker-compose.woocommerce.yml up -d
+#   docker compose -f docker-compose.woocommerce.yml logs -f woocommerce-setup   # wait for "store is ready"
+#
+# Store: http://localhost:8080 (admin / admin_password) · REST API: http://localhost:8080/wp-json/wc/v3
+# Webhooks are delivered to WooPulse at WOOPULSE_WEBHOOK_URL:
+#   - API on the host (npm run dev):  http://host.docker.internal:4000/api/webhooks/woocommerce  (default)
+#   - API in Compose (docker-compose.yml):  http://api:4000/api/webhooks/woocommerce
+services:
+  wordpress-db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress_password
+      MYSQL_RANDOM_ROOT_PASSWORD: "1"
+    volumes:
+      - wordpress_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uwordpress", "-pwordpress_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  wordpress:
+    image: wordpress:php8.2-apache
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment: &wp-env
+      WORDPRESS_DB_HOST: wordpress-db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress_password
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+      # Local-only: allow webhook delivery to WooPulse on the Docker network (see file header).
+      - ./docker/woocommerce/mu-plugins:/var/www/html/wp-content/mu-plugins:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      wordpress-db:
+        condition: service_healthy
+
+  # One-shot, idempotent provisioning via WP-CLI (safe to re-run with `up -d`).
+  woocommerce-setup:
+    image: wordpress:cli-php8.2
+    user: "33:33" # same uid as Apache in the wordpress image, so files stay writable
+    restart: "no"
+    environment:
+      <<: *wp-env
+      WOO_SITE_URL: http://localhost:8080
+      WOOPULSE_WEBHOOK_URL: ${WOOPULSE_WEBHOOK_URL:-http://host.docker.internal:4000/api/webhooks/woocommerce}
+      WOOPULSE_WEBHOOK_SECRET: ${WOOPULSE_WEBHOOK_SECRET:-woopulse-webhook-secret}
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./docker/woocommerce/setup.sh:/setup.sh:ro
+    entrypoint: ["bash", "/setup.sh"]
+    depends_on:
+      - wordpress
+
+volumes:
+  wordpress_db_data:
+  wordpress_data:

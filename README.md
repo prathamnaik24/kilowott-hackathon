@@ -17,8 +17,9 @@ Store owners on WooCommerce have orders in one place, customer emails in another
 | **At-risk order detection** | Deterministic, unit-tested rules: high-value order on hold, on hold > 24h, processing > 72h, failed/pending payment, repeat customer cancelled, refund pattern. Each flag has a severity, a reason and a suggested action. |
 | **AI layer** | **Customer summary** (grounded in the customer's data, cites order numbers), **follow-up email drafter** (choice of tone and order), and the **CRM copilot**: a tool-using agent that searches customers, reads timelines, lists orders and risks, creates tasks and saves email drafts. |
 | **Human in the loop** | The AI **never sends email**. Drafts land on the timeline as `DRAFT`, and an agent edits them and clicks *Approve & send*. The copilot has no send tool at all. |
-| **Sync health** | Store connection, sync status, a manual full resync, the webhook event log (processed / ignored / failed), queue depth, and retry for failed events. |
-| **Auth & roles** | JWT login. `ADMIN` can resync, retry events and toggle workflows; `AGENT` handles day-to-day CRM work. |
+| **Sync health** | Store connection, sync status, a manual full resync, the webhook event log (processed / ignored / failed), the queue driver and depth, cache hit rate, and retry for failed events. |
+| **Redis** | **BullMQ** job queue consumed by a **separate worker process**, a **shared cache** for the dashboard and at-risk scan (cache-aside with invalidation from the worker), and **login rate limiting** (atomic counters with expiry). Without `REDIS_URL`, the app falls back to an in-process queue and an in-memory cache, so it still runs with zero infrastructure. |
+| **Auth & roles** | JWT login with brute-force lockout (5 failures per IP + email per 15 min). `ADMIN` can resync, retry events and toggle workflows; `AGENT` handles day-to-day CRM work. |
 
 ## Quick start
 
@@ -27,7 +28,8 @@ Requires Node 20+.
 ```bash
 npm install
 cp .env.example server/.env      # optional: add LLM_API_KEY (free Groq key) for the AI features
-npm run dev                      # API on :4000, UI on http://localhost:5173
+docker compose up -d redis       # optional: Redis for BullMQ, cache and rate limiting
+npm run dev                      # API on :4000, BullMQ worker, UI on http://localhost:5173
 ```
 
 Log in with **admin@woopulse.dev / demo1234**, or **agent@woopulse.dev / demo1234** for the agent role.
@@ -105,7 +107,12 @@ More detail, including the webhook sequence diagram, data model, design decision
 - **Metrics come from the CRM's own data.** WooCommerce REST v3 no longer returns `orders_count`/`total_spent` on customers, and guest orders never appear there, so LTV is computed from synced orders (refunded, cancelled and failed orders are excluded).
 - **Historical import doesn't trigger workflows.** Only live events do, so connecting a store never emails existing customers.
 - **Rules decide, the LLM explains.** Risk detection is deterministic and testable. The LLM summarises and recommends, using only the JSON it is given, and cites order numbers.
-- **Swappable infrastructure.** SQLite and the in-process queue keep the demo free of infrastructure. Switching the Prisma provider gives you Postgres, and swapping the queue class for BullMQ + Redis lets you scale out horizontally (see the architecture doc).
+- **Redis, used for three distinct jobs:**
+  - **Message queue (BullMQ).** The API only verifies, persists and enqueues; a separate worker (`npm run worker`) does the heavy work. The BullMQ `jobId` is the webhook event id, so duplicate enqueues are ignored. Jobs retry 3× with exponential backoff, and permanently failed jobs are marked `FAILED` and can be retried from the UI. The database stays the source of truth: if Redis is down, events wait as `PENDING` and a sweeper re-queues them when Redis returns.
+  - **Cache.** The dashboard and the store-wide at-risk scan are cached for 30 s (cache-aside). Because the worker is a different process, invalidation goes through Redis: after each processed webhook the worker deletes the cached keys, so the UI never shows stale numbers for long. Cache failures fail open (the value is recomputed).
+  - **Rate limiting.** `INCR` + `EXPIRE` in one `MULTI`, so every API instance shares the same counter and keys clean themselves up.
+- **Retry-safe workflows.** The outcome of each webhook (including its workflow trigger) is saved before workflows run, and a workflow run is unique per (workflow, event). A retry re-dispatches only workflows that haven't run, so triggers are never lost and customer emails are never sent twice. A broken workflow fails alone and is logged as `FAILED`.
+- **Swappable infrastructure.** SQLite keeps the demo free of infrastructure; switching the Prisma provider gives you Postgres.
 
 ## Project structure
 
@@ -136,7 +143,7 @@ client/src/
 npm test
 ```
 
-There are 38 tests: **unit tests** cover the payload mapper (including guest orders and timezones), webhook signature verification, the workflow condition evaluator and template rendering, the risk rules, LTV metrics and the retrying job queue. **Integration tests** (Supertest against a real SQLite database) cover the full webhook pipeline: the ping handshake, rejection of forged signatures, guest customer creation, duplicate-delivery idempotency, status transitions triggering the correct workflows, stale-event handling, auth, and RBAC.
+There are 47 tests: **unit tests** cover the payload mapper (including guest orders and timezones), webhook signature verification, the workflow condition evaluator and template rendering, the risk rules, LTV metrics, the retrying job queue (including recovery when the failure handler throws), the cache-aside cache and the rate limiter, and `.env` loading. **Integration tests** (Supertest against a real SQLite database) cover the full webhook pipeline: the ping handshake, rejection of forged signatures, guest customer creation, duplicate-delivery idempotency, status transitions triggering the correct workflows, stale-event handling, workflow failure isolation and retry idempotency, login lockout, auth, and RBAC.
 
 ## Deployment
 
@@ -154,5 +161,6 @@ It works as-is on Render, Railway or Fly.io. Set `PUBLIC_URL` to the public URL.
 - **One connected store per deployment.** The schema keeps sync state per store, but multi-tenant support is out of scope.
 - **Email uses a log transport.** Sent emails are recorded on the timeline and in the server log. Plug SMTP or Resend into `email.service.ts → deliver()`.
 - **Status history only exists from the moment of connection.** WooCommerce doesn't expose past transitions in the order resource, so historical orders only show their state at import time.
-- **The in-process queue suits a single instance.** Use BullMQ + Redis to run several API or worker replicas.
+- **The worker runs with concurrency 1** to keep events in order per store. To scale out, shard queues per store.
+- **SQLite is shared by the API and worker containers** through a volume. That is fine for a demo, but use PostgreSQL for real concurrent load.
 - **Workflows are toggled in the UI, not built there.** Definitions are validated with Zod, so a builder UI is a natural next step.

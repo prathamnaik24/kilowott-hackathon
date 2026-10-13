@@ -6,5 +6,6 @@ export function createWooClient() {
     storeUrl: wooStoreUrl(),
     consumerKey: env.WOO_CONSUMER_KEY,
     consumerSecret: env.WOO_CONSUMER_SECRET,
+    signatureBaseUrl: env.WOO_SIGNATURE_BASE_URL || undefined,
   });
 }

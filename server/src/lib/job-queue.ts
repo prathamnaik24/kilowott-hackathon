@@ -50,20 +50,28 @@ export class JobQueue<T> {
   private async drain(): Promise<void> {
     if (this.running) return;
     this.running = true;
-    while (this.jobs.length > 0) {
-      const job = this.jobs.shift()!;
-      try {
-        await this.handler(job.data, job.attempt);
-      } catch (error) {
-        if (job.attempt < this.maxAttempts) {
-          await new Promise((r) => setTimeout(r, this.backoffMs * 2 ** (job.attempt - 1)));
-          this.jobs.unshift({ ...job, attempt: job.attempt + 1 });
-        } else {
-          await this.options.onFailed?.(job.id, error);
+    try {
+      while (this.jobs.length > 0) {
+        const job = this.jobs.shift()!;
+        try {
+          await this.handler(job.data, job.attempt);
+        } catch (error) {
+          if (job.attempt < this.maxAttempts) {
+            await new Promise((r) => setTimeout(r, this.backoffMs * 2 ** (job.attempt - 1)));
+            this.jobs.unshift({ ...job, attempt: job.attempt + 1 });
+          } else {
+            // A failing failure-handler (e.g. DB down) must never stall the queue (AUD-004).
+            try {
+              await this.options.onFailed?.(job.id, error);
+            } catch (handlerError) {
+              console.error(`[queue] onFailed handler error for job ${job.id}:`, handlerError);
+            }
+          }
         }
       }
+    } finally {
+      this.running = false;
+      this.idleWaiters.splice(0).forEach((resolve) => resolve());
     }
-    this.running = false;
-    this.idleWaiters.splice(0).forEach((resolve) => resolve());
   }
 }

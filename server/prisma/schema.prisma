@@ -133,12 +133,15 @@ model WorkflowRun {
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   orderId    String?
   order      Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  status     String // SUCCESS | FAILED | SKIPPED
+  /// Webhook event that triggered this run: (workflowId, webhookEventId) is unique so retries never re-run a workflow
+  webhookEventId String?
+  status     String // RUNNING | SUCCESS | FAILED
   /// JSON: list of action results
   output     String    @default("[]")
   error      String?
   createdAt  DateTime  @default(now())
 
+  @@unique([workflowId, webhookEventId])
   @@index([createdAt])
 }
 
@@ -151,6 +154,9 @@ model WebhookEvent {
   payload     String
   status      String    @default("PENDING") // PENDING | PROCESSED | FAILED | IGNORED
   attempts    Int       @default(0)
+  /// JSON outcome of applying the event (status + workflow trigger), saved before workflows run so
+  /// a retry re-dispatches the same trigger instead of re-detecting a transition that is already committed.
+  outcome     String?
   error       String?
   receivedAt  DateTime  @default(now())
   processedAt DateTime?

@@ -1,0 +1,67 @@
+# WooPulse runtime services.
+#
+#   Redis only (run API/worker/web on the host with `npm run dev`):
+#     docker compose up -d redis
+#
+#   Full stack in containers (API + BullMQ worker + Redis):
+#     docker compose up -d --build
+#
+#   Together with the local WooCommerce store (shared network → webhooks to http://api:4000):
+#     WOOPULSE_WEBHOOK_URL=http://api:4000/api/webhooks/woocommerce \
+#       docker compose -f docker-compose.yml -f docker-compose.woocommerce.yml up -d --build
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # AOF persistence: queued jobs and rate-limit counters survive a Redis restart.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment: &app-env
+      DATABASE_URL: file:/data/woopulse.db
+      REDIS_URL: redis://redis:6379
+      PUBLIC_URL: http://localhost:4000
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-compose}
+      WOO_WEBHOOK_SECRET: ${WOO_WEBHOOK_SECRET:-woopulse-webhook-secret}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      # Point at the local WooCommerce container when it is part of the same Compose project:
+      WOO_STORE_URL: ${WOO_STORE_URL:-}
+      WOO_SIGNATURE_BASE_URL: ${WOO_SIGNATURE_BASE_URL:-}
+      WOO_CONSUMER_KEY: ${WOO_CONSUMER_KEY:-ck_mock}
+      WOO_CONSUMER_SECRET: ${WOO_CONSUMER_SECRET:-cs_mock}
+      MOCK_WOO_ENABLED: ${MOCK_WOO_ENABLED:-true}
+    volumes:
+      - app_data:/data # SQLite file shared by api + worker
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["npm", "run", "worker", "-w", "server"]
+    environment: *app-env
+    volumes:
+      - app_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started # api applies the DB schema on start
+
+volumes:
+  redis_data:
+  app_data:

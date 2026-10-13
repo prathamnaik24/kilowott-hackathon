@@ -1,0 +1,284 @@
+[
+ {
+  "id": "T-ARCH-01",
+  "title": "Health endpoint responds",
+  "status": "PASS",
+  "evidence": "GET /api/health → 200"
+ },
+ {
+  "id": "T-AUTH-01",
+  "title": "Admin login succeeds",
+  "status": "PASS",
+  "evidence": "POST /api/auth/login → 200"
+ },
+ {
+  "id": "T-SEC-01",
+  "title": "Login response does not expose password hash",
+  "status": "PASS",
+  "evidence": "keys: id,email,name,role"
+ },
+ {
+  "id": "T-AUTH-02",
+  "title": "Agent login succeeds",
+  "status": "PASS",
+  "evidence": "→ 200"
+ },
+ {
+  "id": "T-AUTH-03",
+  "title": "Wrong password rejected with 401",
+  "status": "PASS",
+  "evidence": "→ 401 {\"error\":\"Invalid email or password\"}"
+ },
+ {
+  "id": "T-SEC-02",
+  "title": "Login input validated (400 on invalid email)",
+  "status": "PASS",
+  "evidence": "→ 400"
+ },
+ {
+  "id": "T-AUTH-04",
+  "title": "CRM endpoints require a valid token",
+  "status": "PASS",
+  "evidence": "no token → 401, bad token → 401"
+ },
+ {
+  "id": "T-AUTH-05",
+  "title": "AGENT cannot resync, retry events or toggle workflows (403)",
+  "status": "PASS",
+  "evidence": "sync 403, retry 403, toggle 403"
+ },
+ {
+  "id": "T-SEC-03",
+  "title": "Login is rate-limited after repeated failures",
+  "status": "FAIL",
+  "evidence": "15 consecutive bad logins → last status 401"
+ },
+ {
+  "id": "T-SEC-04",
+  "title": "CORS restricted to known origins",
+  "status": "FAIL",
+  "evidence": "Access-Control-Allow-Origin: *"
+ },
+ {
+  "id": "T-WOO-01",
+  "title": "Initial sync imports all store orders",
+  "status": "PASS",
+  "evidence": "store orders 53, CRM orders 53"
+ },
+ {
+  "id": "T-WOO-02",
+  "title": "Initial sync imports all registered customers + guest customers",
+  "status": "PASS",
+  "evidence": "store customers 12, CRM registered 12, guests 3"
+ },
+ {
+  "id": "T-WOO-03",
+  "title": "Sync status/timestamp reflect successful sync",
+  "status": "PASS",
+  "evidence": "status SUCCESS, lastSyncedAt 2026-10-13T09:40:06.802Z"
+ },
+ {
+  "id": "T-WOO-04",
+  "title": "Repeated full sync creates no duplicates",
+  "status": "PASS",
+  "evidence": "resync 200; orders 53→53; customers 15→15"
+ },
+ {
+  "id": "T-SEC-05",
+  "title": "Store/sync-health API never returns Woo credentials or webhook secret",
+  "status": "PASS",
+  "evidence": "scanned GET /api/store body for key/secret values"
+ },
+ {
+  "id": "T-WEBHOOK-01",
+  "title": "WooCommerce form-encoded creation ping acknowledged",
+  "status": "PASS",
+  "evidence": "→ 200 {\"ok\":true,\"ping\":true}"
+ },
+ {
+  "id": "T-WEBHOOK-02",
+  "title": "Forged signature rejected; order unchanged",
+  "status": "PASS",
+  "evidence": "→ 401; status still processing"
+ },
+ {
+  "id": "T-WEBHOOK-03",
+  "title": "Valid webhook accepted asynchronously (202) and order updated",
+  "status": "PASS",
+  "evidence": "→ 202; order status on-hold"
+ },
+ {
+  "id": "T-ORDER-01",
+  "title": "Status transition recorded with previous/new status and source",
+  "status": "PASS",
+  "evidence": "{\"p\":\"processing\",\"n\":\"on-hold\",\"s\":\"WEBHOOK\"}"
+ },
+ {
+  "id": "T-WORKFLOW-01",
+  "title": "on-hold-apology workflow runs once with email + task actions",
+  "status": "PASS",
+  "evidence": "runs +1; output [\"SEND_EMAIL\",\"CREATE_TASK\"]"
+ },
+ {
+  "id": "T-WORKFLOW-02",
+  "title": "Workflow actions persisted as timeline activities",
+  "status": "PASS",
+  "evidence": "emails 1, tasks 1"
+ },
+ {
+  "id": "T-WEBHOOK-04",
+  "title": "Duplicate delivery ID acknowledged without reprocessing",
+  "status": "PASS",
+  "evidence": "→ 202 {\"ok\":true,\"eventId\":\"cmv6hrvbq006iv8h4ix99lkoi\",\"duplicate\":true}"
+ },
+ {
+  "id": "T-QUEUE-01",
+  "title": "Replayed payload creates no extra status events, runs, emails or tasks",
+  "status": "PASS",
+  "evidence": "statusEvents 2→2, runs 1→1, replay → 202"
+ },
+ {
+  "id": "T-WEBHOOK-05",
+  "title": "Older (stale) event does not overwrite newer state; marked IGNORED",
+  "status": "PASS",
+  "evidence": "status on-hold, event IGNORED"
+ },
+ {
+  "id": "T-CUSTOMER-01",
+  "title": "Guest orders matched on normalized billing email (one customer, two orders)",
+  "status": "PASS",
+  "evidence": "matches 1, orders 2"
+ },
+ {
+  "id": "T-CUSTOMER-02",
+  "title": "Distinct guest orders without email are NOT merged into one customer",
+  "status": "PASS",
+  "evidence": "customers with empty email: 1; their orders: Nora NoEmail:1"
+ },
+ {
+  "id": "T-CUSTOMER-03",
+  "title": "Registered customer taking a guest email is merged, not failed",
+  "status": "FAIL",
+  "evidence": "event status FAILED, attempts 3, error:  Invalid `prisma.customer.update()` invocation in D:\\kilowott hackathon\\server\\src\\modules\\sync\\ingest.service.ts:51:44 48 49 if (existing) { 50 // Never downgr"
+ },
+ {
+  "id": "T-SEC-06",
+  "title": "Failed-event errors are sanitized (no stack/SQL internals)",
+  "status": "FAIL",
+  "evidence": "error excerpt:  Invalid `prisma.customer.update()` invocation in D:\\kilowott hackathon\\server\\src\\modules\\sync\\ingest.service.ts:51:44 "
+ },
+ {
+  "id": "T-SEC-07",
+  "title": "Malformed JSON body → 400 (not 500)",
+  "status": "FAIL",
+  "evidence": "→ 500 {\"error\":\"Internal server error\"}"
+ },
+ {
+  "id": "T-SEC-08",
+  "title": "Activity for unknown customer → 4xx (not 500)",
+  "status": "FAIL",
+  "evidence": "→ 500 {\"error\":\"Internal server error\"}"
+ },
+ {
+  "id": "T-DB-01",
+  "title": "Activity cannot link an order belonging to a different customer",
+  "status": "FAIL",
+  "evidence": "→ 201"
+ },
+ {
+  "id": "T-CUSTOMER-04",
+  "title": "Agent-created note persists on timeline",
+  "status": "PASS",
+  "evidence": "→ 201, on timeline true"
+ },
+ {
+  "id": "T-EMAIL-01",
+  "title": "Email created without send=true stays DRAFT; approval sends edited content",
+  "status": "PASS",
+  "evidence": "draft DRAFT → SENT \"Edited subj\""
+ },
+ {
+  "id": "T-EMAIL-02",
+  "title": "Already-sent email cannot be sent again",
+  "status": "PASS",
+  "evidence": "→ 400"
+ },
+ {
+  "id": "T-AI-01",
+  "title": "Summary (rules mode) cites only the customer’s real orders",
+  "status": "PASS",
+  "evidence": "generatedBy rules; sources #5036,#5001"
+ },
+ {
+  "id": "T-AI-02",
+  "title": "AI draft is stored as DRAFT (never auto-sent)",
+  "status": "PASS",
+  "evidence": "timeline status DRAFT, origin ai"
+ },
+ {
+  "id": "T-AI-03",
+  "title": "Copilot without LLM key degrades gracefully (no tool calls)",
+  "status": "PASS",
+  "evidence": "The copilot needs an LLM. Set `LLM_API_KEY` (a free Groq key works) and restart "
+ },
+ {
+  "id": "T-AI-04",
+  "title": "Agent toolset has no send-email or SQL tool",
+  "status": "PASS",
+  "evidence": "search_customers,get_customer_profile,get_customer_timeline,list_orders,get_at_risk_orders,create_task,draft_email"
+ },
+ {
+  "id": "T-ORDER-02",
+  "title": "Dashboard revenue equals sum of customer LTVs",
+  "status": "PASS",
+  "evidence": "dashboard 16968.5, Σ LTV 16968.5"
+ },
+ {
+  "id": "T-ORDER-03",
+  "title": "Dashboard order KPI equals order count",
+  "status": "PASS",
+  "evidence": "kpi 56, list 56"
+ },
+ {
+  "id": "T-CUSTOMER-05",
+  "title": "Per-customer LTV excludes cancelled/refunded/failed (and pending)",
+  "status": "PASS",
+  "evidence": "customers with mismatched LTV: 0"
+ },
+ {
+  "id": "T-ORDER-04",
+  "title": "Time-in-status for imported orders measured from last modification",
+  "status": "FAIL",
+  "evidence": "flag says 40h on hold; wooModifiedAt was 30h ago"
+ },
+ {
+  "id": "T-SEC-09",
+  "title": "Query params validated (400)",
+  "status": "PASS",
+  "evidence": "limit → 400, sort → 400"
+ },
+ {
+  "id": "T-SEC-10",
+  "title": "Unknown IDs → 404 without stack traces",
+  "status": "PASS",
+  "evidence": "customer 404, order 404"
+ },
+ {
+  "id": "T-WOO-05",
+  "title": "Mock store REST rejects wrong consumer keys",
+  "status": "PASS",
+  "evidence": "→ 401"
+ },
+ {
+  "id": "T-SEC-11",
+  "title": "Unauthenticated users cannot mutate store data via mock admin panel",
+  "status": "FAIL",
+  "evidence": "anonymous POST → 303; CRM order now cancelled"
+ },
+ {
+  "id": "T-UI-01",
+  "title": "All client routes served by the API host (SPA fallback)",
+  "status": "PASS",
+  "evidence": "/:200 /login:200 /customers:200 /customers/cmv6hpkft000iv8h480wuc98z:200 /orders:200 /orders/cmv6hpl2q0067v8h47mq9hycf:200 /workflows:200 /copilot:200 /settings:200"
+ }
+]

@@ -1,9 +1,15 @@
+import { signOAuthRequest } from './woocommerce.oauth.js';
 import type { WooCustomer, WooOrder } from './woocommerce.types.js';
 
 export interface WooClientConfig {
   storeUrl: string;
   consumerKey: string;
   consumerSecret: string;
+  /**
+   * Base URL used for OAuth signatures when it differs from storeUrl — WordPress signs against its
+   * own home URL (e.g. API in Docker calls http://wordpress but WP thinks it is http://localhost:8080).
+   */
+  signatureBaseUrl?: string;
   /** Override for tests. */
   fetchImpl?: typeof fetch;
 }
@@ -68,14 +74,34 @@ export class WooCommerceClient {
     init: { method?: string; body?: unknown } = {},
     attempt = 1,
   ): Promise<Page<T>> {
+    const method = init.method ?? 'GET';
     const base = this.config.storeUrl.replace(/\/+$/, '');
     const url = new URL(`${base}/wp-json/wc/v3${path}`);
-    for (const [k, v] of Object.entries(query)) url.searchParams.set(k, String(v));
+    const params = Object.fromEntries(Object.entries(query).map(([k, v]) => [k, String(v)]));
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
-    const auth = Buffer.from(`${this.config.consumerKey}:${this.config.consumerSecret}`).toString('base64');
+    if (url.protocol === 'https:') {
+      // WooCommerce accepts consumer key/secret as HTTP Basic auth only over HTTPS.
+      headers.Authorization = `Basic ${Buffer.from(`${this.config.consumerKey}:${this.config.consumerSecret}`).toString('base64')}`;
+      for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    } else {
+      // Over plain HTTP (e.g. the local Docker store) WooCommerce requires OAuth 1.0a signatures.
+      // The signature must use the URL WordPress believes it lives at (its home URL), which differs
+      // from the request URL when calling across a Docker network (http://wordpress vs http://localhost:8080).
+      const signingBase = (this.config.signatureBaseUrl ?? base).replace(/\/+$/, '');
+      const signed = signOAuthRequest({
+        method,
+        url: `${signingBase}/wp-json/wc/v3${path}`,
+        query: params,
+        consumerKey: this.config.consumerKey,
+        consumerSecret: this.config.consumerSecret,
+      });
+      for (const [k, v] of Object.entries(signed)) url.searchParams.set(k, v);
+    }
+
     const res = await this.fetchImpl(url, {
-      method: init.method ?? 'GET',
-      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      method,
+      headers,
       body: init.body ? JSON.stringify(init.body) : undefined,
     });
 

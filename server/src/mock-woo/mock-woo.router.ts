@@ -1,6 +1,7 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import express, { Router, type Request, type Response, type NextFunction } from 'express';
 import { env } from '../config/env.js';
+import { oauthSignatureBaseString } from '../integrations/woocommerce/woocommerce.oauth.js';
 import { signWebhookBody } from '../integrations/woocommerce/woocommerce.signature.js';
 import type { WooCustomer, WooOrder, WooWebhookTopic } from '../integrations/woocommerce/woocommerce.types.js';
 import { address, generateStore, GUESTS, PEOPLE, PRODUCTS, toWooDate, type MockStoreState } from './mock-data.js';
@@ -47,10 +48,21 @@ export function createMockWooRouter(options: { webhookUrl: string; basePath: str
     res.json(items.slice((page - 1) * perPage, page * perPage));
   };
 
+  /** Accepts Basic auth (HTTPS clients) or OAuth 1.0a query signatures (HTTP clients), like WooCommerce. */
   const requireKeys = (req: Request, res: Response, next: NextFunction) => {
     const header = req.header('authorization') ?? '';
-    const [user, pass] = Buffer.from(header.replace(/^Basic /, ''), 'base64').toString().split(':');
-    if (user !== env.WOO_CONSUMER_KEY || pass !== env.WOO_CONSUMER_SECRET) {
+    let authorized = false;
+    if (header.startsWith('Basic ')) {
+      const [user, pass] = Buffer.from(header.slice(6), 'base64').toString().split(':');
+      authorized = user === env.WOO_CONSUMER_KEY && pass === env.WOO_CONSUMER_SECRET;
+    } else if (typeof req.query.oauth_signature === 'string' && req.query.oauth_consumer_key === env.WOO_CONSUMER_KEY) {
+      const { oauth_signature: received, ...params } = req.query as Record<string, string>;
+      const url = `${req.protocol}://${req.get('host')}${req.originalUrl.split('?')[0]}`;
+      const base = oauthSignatureBaseString(req.method, url, params);
+      const expected = createHmac('sha256', `${env.WOO_CONSUMER_SECRET}&`).update(base).digest('base64');
+      authorized = expected === received;
+    }
+    if (!authorized) {
       res.status(401).json({ code: 'woocommerce_rest_cannot_view', message: 'Invalid consumer key.' });
       return;
     }

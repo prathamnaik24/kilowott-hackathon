@@ -1,8 +1,10 @@
+import { invalidate } from '../../lib/cache.js';
 import { prisma } from '../../lib/db.js';
-import { JobQueue } from '../../lib/job-queue.js';
+import { parseJson } from '../../lib/json.js';
 import type { WooCustomer, WooOrder } from '../../integrations/woocommerce/woocommerce.types.js';
+import { bindInProcessConsumer, getWebhookQueue } from '../../queues/webhook-queue.js';
 import { upsertWooCustomer, upsertWooOrder } from '../sync/ingest.service.js';
-import { runWorkflows } from '../workflows/workflow.engine.js';
+import { runWorkflows, type TriggerEvent } from '../workflows/workflow.engine.js';
 
 export interface IncomingWebhook {
   deliveryId: string | null;
@@ -10,17 +12,11 @@ export interface IncomingWebhook {
   payload: unknown;
 }
 
-/** Single-consumer queue so events for the same order are applied in arrival order. */
-export const webhookQueue = new JobQueue<string>((eventId, attempt) => processWebhookEvent(eventId, attempt), {
-  maxAttempts: 3,
-  backoffMs: 500,
-  onFailed: async (eventId, error) => {
-    await prisma.webhookEvent.update({
-      where: { id: eventId },
-      data: { status: 'FAILED', error: error instanceof Error ? error.message : String(error) },
-    });
-  },
-});
+/** What applying an event produced. Persisted so retries never re-derive it (AUD-002). */
+interface EventOutcome {
+  status: 'PROCESSED' | 'IGNORED';
+  trigger: TriggerEvent | null;
+}
 
 /**
  * Persists the raw delivery, then enqueues it. Duplicate delivery ids are acknowledged
@@ -40,61 +36,106 @@ export async function acceptWebhook(hook: IncomingWebhook): Promise<{ eventId: s
       payload: JSON.stringify(hook.payload),
     },
   });
-  webhookQueue.enqueue(event.id, event.id);
+  try {
+    await getWebhookQueue().enqueue(event.id);
+  } catch (e) {
+    // Queue (Redis) unavailable: the event is safely PENDING in the database and is picked up by
+    // the pending-event sweeper once the queue is back. Still acknowledge so WooCommerce doesn't disable the hook.
+    console.warn(`[webhook] enqueue failed, event ${event.id} left PENDING: ${(e as Error).message}`);
+  }
   return { eventId: event.id, duplicate: false };
 }
 
-/** Worker: upsert resource → detect transitions → evaluate workflows. */
-export async function processWebhookEvent(eventId: string, attempt = 1): Promise<void> {
-  const event = await prisma.webhookEvent.findUniqueOrThrow({ where: { id: eventId } });
-  await prisma.webhookEvent.update({ where: { id: eventId }, data: { attempts: attempt } });
-  const payload = JSON.parse(event.payload);
-
-  let status: 'PROCESSED' | 'IGNORED' = 'PROCESSED';
-  switch (event.topic) {
+/** Applies the WooCommerce resource and returns the resulting status + workflow trigger. */
+async function applyEvent(topic: string, payload: unknown): Promise<EventOutcome> {
+  switch (topic) {
     case 'customer.created':
     case 'customer.updated': {
       const { customer, created } = await upsertWooCustomer(payload as WooCustomer);
-      if (created) await runWorkflows({ trigger: 'CUSTOMER_CREATED', customerId: customer.id });
-      break;
+      return { status: 'PROCESSED', trigger: created ? { trigger: 'CUSTOMER_CREATED', customerId: customer.id } : null };
     }
     case 'order.created':
     case 'order.updated': {
-      const result = await upsertWooOrder(payload as WooOrder, 'WEBHOOK');
-      if (result.stale) {
-        status = 'IGNORED';
-      } else if (result.created) {
-        await runWorkflows({ trigger: 'ORDER_CREATED', customerId: result.customerId, orderId: result.orderId });
-      } else if (result.statusChanged) {
-        await runWorkflows({
-          trigger: 'ORDER_STATUS_CHANGED',
-          customerId: result.customerId,
-          orderId: result.orderId,
-          previousStatus: result.previousStatus,
-        });
+      const r = await upsertWooOrder(payload as WooOrder, 'WEBHOOK');
+      if (r.stale) return { status: 'IGNORED', trigger: null };
+      if (r.created) return { status: 'PROCESSED', trigger: { trigger: 'ORDER_CREATED', customerId: r.customerId, orderId: r.orderId } };
+      if (r.statusChanged) {
+        return {
+          status: 'PROCESSED',
+          trigger: { trigger: 'ORDER_STATUS_CHANGED', customerId: r.customerId, orderId: r.orderId, previousStatus: r.previousStatus },
+        };
       }
-      break;
+      return { status: 'PROCESSED', trigger: null };
     }
     default:
       // customer.deleted / order.deleted and unknown topics are recorded but not applied.
-      status = 'IGNORED';
+      return { status: 'IGNORED', trigger: null };
   }
+}
+
+/**
+ * Worker: upsert resource → detect transitions → evaluate workflows.
+ *
+ * Retry-safe: the outcome (incl. trigger) is saved before workflows run, and each workflow run is
+ * unique per (workflow, event), so a retry after a crash re-dispatches only the workflows that
+ * have not run yet — never losing a trigger and never sending an email twice.
+ */
+export async function processWebhookEvent(eventId: string, attempt = 1): Promise<void> {
+  const event = await prisma.webhookEvent.findUniqueOrThrow({ where: { id: eventId } });
+  if (event.status === 'PROCESSED' || event.status === 'IGNORED') return; // already done (duplicate job)
+  await prisma.webhookEvent.update({ where: { id: eventId }, data: { attempts: attempt } });
+
+  let outcome = parseJson<EventOutcome | null>(event.outcome, null);
+  if (!outcome) {
+    outcome = await applyEvent(event.topic, JSON.parse(event.payload));
+    await prisma.webhookEvent.update({ where: { id: eventId }, data: { outcome: JSON.stringify(outcome) } });
+  }
+  if (outcome.trigger) await runWorkflows(outcome.trigger, { webhookEventId: eventId });
 
   await prisma.webhookEvent.update({
     where: { id: eventId },
-    data: { status, error: null, processedAt: new Date() },
+    data: { status: outcome.status, error: null, processedAt: new Date() },
   });
+  await invalidate(); // dashboard / at-risk read models changed
 }
 
-/** Re-queues events left PENDING by a crash/restart, plus any FAILED ones on demand. */
-export async function requeueEvents(statuses: string[] = ['PENDING']): Promise<number> {
+/** Called when a job exhausts its retries. Stores a short, sanitized reason (full error stays in logs). */
+export async function markEventFailed(eventId: string, error: unknown) {
+  console.error(`[webhook] event ${eventId} failed permanently:`, error);
+  await prisma.webhookEvent.update({ where: { id: eventId }, data: { status: 'FAILED', error: sanitizeError(error) } });
+}
+
+export function sanitizeError(error: unknown): string {
+  const code = (error as { code?: string })?.code;
+  if (code === 'P2002') return 'Conflicting record: a unique field (e.g. email) is already used by another record';
+  if (code === 'P2003') return 'Referenced record does not exist';
+  if (code?.startsWith('P')) return `Database error ${code}`;
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split('\n')[0].replace(/[A-Z]:\\[^\s]+|\/[\w./-]+\.(ts|js)(:\d+)*/g, '[path]').slice(0, 200);
+}
+
+/** Re-queues PENDING events (crash/restart or Redis outage) and, on demand, FAILED ones. */
+export async function requeueEvents(statuses: string[] = ['PENDING'], olderThanMs = 0): Promise<number> {
   const events = await prisma.webhookEvent.findMany({
-    where: { status: { in: statuses } },
+    where: { status: { in: statuses }, receivedAt: { lte: new Date(Date.now() - olderThanMs) } },
     orderBy: { receivedAt: 'asc' },
   });
+  const queue = getWebhookQueue();
   for (const e of events) {
-    await prisma.webhookEvent.update({ where: { id: e.id }, data: { status: 'PENDING' } });
-    webhookQueue.enqueue(e.id, e.id);
+    if (e.status === 'FAILED') {
+      await prisma.webhookEvent.update({ where: { id: e.id }, data: { status: 'PENDING' } });
+      await queue.retry(e.id);
+    } else {
+      await queue.enqueue(e.id);
+    }
   }
   return events.length;
 }
+
+// In-process mode: the API consumes its own queue. With BullMQ, src/worker.ts consumes it.
+bindInProcessConsumer(processWebhookEvent, markEventFailed);
+
+/** Backwards-compatible handle used by tests and the sync-health endpoint. */
+export const webhookQueue = {
+  onIdle: () => getWebhookQueue().onIdle(),
+};

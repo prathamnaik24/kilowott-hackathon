@@ -1,4 +1,14 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+
+/**
+ * Load server/.env (or ENV_FILE) BEFORE parsing. Real environment variables take precedence,
+ * so Docker / hosting-platform configuration still wins over the file.
+ */
+const envFile = process.env.ENV_FILE ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env');
+if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -9,6 +19,8 @@ const EnvSchema = z.object({
   PUBLIC_URL: z.string().default('http://localhost:4000'),
 
   WOO_STORE_URL: z.string().default(''),
+  /** OAuth signing base when WordPress's home URL differs from WOO_STORE_URL (API inside Docker). */
+  WOO_SIGNATURE_BASE_URL: z.string().optional(),
   WOO_CONSUMER_KEY: z.string().default('ck_mock'),
   WOO_CONSUMER_SECRET: z.string().default('cs_mock'),
   WOO_WEBHOOK_SECRET: z.string().default('woopulse-webhook-secret'),
@@ -21,6 +33,17 @@ const EnvSchema = z.object({
   AUTO_SYNC_ON_BOOT: z
     .string()
     .default('true')
+    .transform((v) => v === 'true'),
+
+  /**
+   * Redis for the BullMQ job queue, shared cache and rate limiting, e.g. redis://localhost:6379.
+   * Empty → in-process queue + in-memory cache (tests, zero-infrastructure demo).
+   */
+  REDIS_URL: z.string().default(''),
+  /** With Redis: also run the BullMQ worker inside the API process (single-service hosting). */
+  RUN_WORKER_IN_API: z
+    .string()
+    .default('false')
     .transform((v) => v === 'true'),
 
   /** Any OpenAI-compatible endpoint: Groq (default), OpenAI, Ollama, ... */

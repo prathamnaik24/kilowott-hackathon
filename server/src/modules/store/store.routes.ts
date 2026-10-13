@@ -3,14 +3,17 @@ import { env, wooStoreUrl } from '../../config/env.js';
 import { prisma } from '../../lib/db.js';
 import { requireRole } from '../auth/auth.js';
 import { getStore, runFullSync } from '../sync/sync.service.js';
-import { requeueEvents, webhookQueue } from '../webhooks/webhook.service.js';
+import { cacheStats } from '../../lib/cache.js';
+import { getWebhookQueue } from '../../queues/webhook-queue.js';
+import { requeueEvents } from '../webhooks/webhook.service.js';
 
 export const storeRouter = Router();
 
 /** Sync health: connection info, last sync, webhook throughput and failures. */
 storeRouter.get('/', async (_req, res) => {
   const store = await getStore();
-  const [eventCounts, recentEvents, lastEvent] = await Promise.all([
+  const queue = getWebhookQueue();
+  const [eventCounts, recentEvents, lastEvent, queueCounts, cache] = await Promise.all([
     prisma.webhookEvent.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.webhookEvent.findMany({
       orderBy: { receivedAt: 'desc' },
@@ -18,6 +21,8 @@ storeRouter.get('/', async (_req, res) => {
       select: { id: true, topic: true, resourceId: true, status: true, attempts: true, error: true, receivedAt: true, processedAt: true },
     }),
     prisma.webhookEvent.findFirst({ orderBy: { receivedAt: 'desc' }, select: { receivedAt: true } }),
+    queue.counts().catch(() => null),
+    cacheStats(),
   ]);
   res.json({
     data: {
@@ -26,7 +31,9 @@ storeRouter.get('/', async (_req, res) => {
       storeUrl: wooStoreUrl(),
       mockAdminUrl: env.MOCK_WOO_ENABLED ? '/mock-woo/' : null,
       webhookEndpoint: `${env.PUBLIC_URL}/api/webhooks/woocommerce`,
-      queueDepth: webhookQueue.size,
+      queue: { driver: queue.driver, counts: queueCounts },
+      queueDepth: queueCounts ? queueCounts.waiting + queueCounts.active : null,
+      cache,
       eventCounts: Object.fromEntries(eventCounts.map((e) => [e.status, e._count._all])),
       lastEventAt: lastEvent?.receivedAt ?? null,
       recentEvents,

@@ -53,20 +53,53 @@ export async function buildContext(event: TriggerEvent): Promise<WorkflowContext
   return context;
 }
 
-/** Evaluates every active workflow for the trigger and executes matching ones. Each run is logged. */
-export async function runWorkflows(event: TriggerEvent) {
-  const workflows = await prisma.workflow.findMany({ where: { trigger: event.trigger, isActive: true } });
+/**
+ * Evaluates every active workflow for the trigger and executes matching ones. Each run is logged.
+ *
+ * - Each workflow is isolated: an invalid definition or failing action marks only that run FAILED;
+ *   the other workflows still run (AUD-002).
+ * - With `webhookEventId`, a run row is claimed (RUNNING) BEFORE actions execute and is unique per
+ *   (workflow, event). A retried event skips workflows that already have a run, so customer
+ *   emails are sent at most once even if the worker crashes mid-way.
+ */
+export async function runWorkflows(event: TriggerEvent, options: { webhookEventId?: string } = {}) {
+  const workflows = await prisma.workflow.findMany({ where: { trigger: event.trigger, isActive: true }, orderBy: { createdAt: 'asc' } });
   if (workflows.length === 0) return [];
 
   const context = await buildContext(event);
   const runs = [];
   for (const wf of workflows) {
-    const conditions = parseJson<Condition[]>(wf.conditions, []);
-    if (!evaluateConditions(conditions, context)) continue;
+    let conditions: Condition[];
+    let actions: WorkflowAction[];
+    let definitionError: string | null = null;
+    try {
+      conditions = parseJson<Condition[]>(wf.conditions, []);
+      actions = parseJson<unknown[]>(wf.actions, []).map((a) => ActionSchema.parse(a));
+    } catch (e) {
+      conditions = [];
+      actions = [];
+      definitionError = `Invalid workflow definition: ${e instanceof Error ? e.message.split('\n')[0] : String(e)}`;
+    }
+    if (!definitionError && !evaluateConditions(conditions, context)) continue;
 
-    const actions = parseJson<unknown[]>(wf.actions, []).map((a) => ActionSchema.parse(a));
+    if (options.webhookEventId) {
+      const existing = await prisma.workflowRun.findUnique({
+        where: { workflowId_webhookEventId: { workflowId: wf.id, webhookEventId: options.webhookEventId } },
+      });
+      if (existing) continue; // already ran (or was claimed) for this event — never repeat side effects
+    }
+    const run = await prisma.workflowRun.create({
+      data: {
+        workflowId: wf.id,
+        webhookEventId: options.webhookEventId ?? null,
+        customerId: event.customerId,
+        orderId: event.orderId ?? null,
+        status: 'RUNNING',
+      },
+    });
+
     const results: ActionResult[] = [];
-    let error: string | null = null;
+    let error: string | null = definitionError;
     for (const action of actions) {
       try {
         results.push(await executeAction(action, context, wf.key));
@@ -76,15 +109,9 @@ export async function runWorkflows(event: TriggerEvent) {
       }
     }
     runs.push(
-      await prisma.workflowRun.create({
-        data: {
-          workflowId: wf.id,
-          customerId: event.customerId,
-          orderId: event.orderId ?? null,
-          status: error ? 'FAILED' : 'SUCCESS',
-          output: JSON.stringify(results),
-          error,
-        },
+      await prisma.workflowRun.update({
+        where: { id: run.id },
+        data: { status: error ? 'FAILED' : 'SUCCESS', output: JSON.stringify(results), error },
       }),
     );
   }

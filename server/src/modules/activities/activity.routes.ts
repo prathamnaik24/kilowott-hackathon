@@ -1,10 +1,17 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { CacheKeys, invalidate } from '../../lib/cache.js';
 import { prisma } from '../../lib/db.js';
 import { HttpError } from '../../lib/errors.js';
 import { sendDraft, sendEmail } from './email.service.js';
 
 export const activityRouter = Router();
+
+// Any activity change can alter dashboard figures (open tasks), so drop cached read models.
+activityRouter.use((req, _res, next) => {
+  if (req.method !== 'GET') void invalidate(CacheKeys.dashboard);
+  next();
+});
 
 const CreateActivity = z.object({
   customerId: z.string(),
