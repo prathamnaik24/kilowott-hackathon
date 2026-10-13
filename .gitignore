@@ -6,3 +6,4 @@ dist/
 server/prisma/dev.db*
 coverage/
 .DS_Store
+prisma/test.db*

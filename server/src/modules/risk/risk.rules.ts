@@ -70,7 +70,7 @@ export function assessOrderRisk(input: RiskInput): RiskFlag[] {
       suggestedAction: 'Call or email to understand why and offer a goodwill gesture.',
     });
   }
-  if (customer.refundedCount >= 2 && ['processing', 'on-hold', 'completed'].includes(order.status)) {
+  if (customer.refundedCount >= 2 && ['processing', 'on-hold'].includes(order.status)) {
     flags.push({
       code: 'REFUND_PATTERN',
       severity: 'medium',

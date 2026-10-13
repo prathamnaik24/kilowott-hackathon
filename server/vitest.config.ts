@@ -13,5 +13,6 @@ export default defineConfig({
       AUTO_SYNC_ON_BOOT: 'false',
     },
     fileParallelism: false,
+    globalSetup: ['tests/global-setup.ts'],
   },
 });
