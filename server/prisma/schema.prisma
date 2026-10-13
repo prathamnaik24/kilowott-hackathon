@@ -1,0 +1,159 @@
+// WooPulse CRM data model.
+// SQLite keeps the demo zero-infrastructure; switch `provider` to "postgresql"
+// for production (string enums and JSON-as-text columns are portable).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         String     @default("AGENT") // ADMIN | AGENT
+  createdAt    DateTime   @default(now())
+  activities   Activity[]
+}
+
+/// Single connected WooCommerce store: tracks sync health.
+model Store {
+  id           String    @id @default("default")
+  name         String
+  url          String
+  syncStatus   String    @default("NEVER") // NEVER | SYNCING | SUCCESS | FAILED
+  syncError    String?
+  lastSyncedAt DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+model Customer {
+  id             String         @id @default(cuid())
+  /// null for guest-checkout customers (WooCommerce sends customer_id = 0)
+  wooCustomerId  Int?           @unique
+  email          String         @unique
+  firstName      String
+  lastName       String
+  phone          String?
+  city           String?
+  country        String?
+  isGuest        Boolean        @default(false)
+  /// JSON array of strings
+  tags           String         @default("[]")
+  wooCreatedAt   DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  orders         Order[]
+  activities     Activity[]
+  workflowRuns   WorkflowRun[]
+}
+
+model Order {
+  id             String             @id @default(cuid())
+  wooOrderId     Int                @unique
+  number         String
+  customerId     String
+  customer       Customer           @relation(fields: [customerId], references: [id])
+  status         String // pending | processing | on-hold | completed | cancelled | refunded | failed
+  currency       String
+  total          Float
+  paymentMethod  String?
+  /// JSON array of { name, quantity, total }
+  lineItems      String             @default("[]")
+  wooCreatedAt   DateTime
+  /// used to discard stale / out-of-order webhook deliveries
+  wooModifiedAt  DateTime
+  syncedAt       DateTime           @default(now())
+  statusEvents   OrderStatusEvent[]
+  activities     Activity[]
+  workflowRuns   WorkflowRun[]
+
+  @@index([status])
+  @@index([customerId])
+}
+
+model OrderStatusEvent {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  previousStatus String?
+  newStatus      String
+  source         String // SYNC | WEBHOOK | CRM
+  occurredAt     DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model Activity {
+  id          String    @id @default(cuid())
+  customerId  String
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId     String?
+  order       Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  type        String // NOTE | TASK | EMAIL | AI_SUMMARY | WORKFLOW
+  title       String
+  body        String    @default("")
+  /// TASK: OPEN | DONE, EMAIL: DRAFT | SENT, others: null
+  status      String?
+  dueAt       DateTime?
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id])
+  /// "user" | "workflow:<key>" | "ai"
+  origin      String    @default("user")
+  createdAt   DateTime  @default(now())
+
+  @@index([customerId, createdAt])
+}
+
+model Workflow {
+  id          String        @id @default(cuid())
+  key         String        @unique
+  name        String
+  description String
+  trigger     String // ORDER_CREATED | ORDER_STATUS_CHANGED | CUSTOMER_CREATED
+  /// JSON array of { field, op, value }
+  conditions  String        @default("[]")
+  /// JSON array of actions (CREATE_TASK | SEND_EMAIL | ADD_TAG)
+  actions     String        @default("[]")
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  runs        WorkflowRun[]
+}
+
+model WorkflowRun {
+  id         String    @id @default(cuid())
+  workflowId String
+  workflow   Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId    String?
+  order      Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  status     String // SUCCESS | FAILED | SKIPPED
+  /// JSON: list of action results
+  output     String    @default("[]")
+  error      String?
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+/// Raw webhook deliveries, persisted before processing for idempotency, debugging and replay.
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  deliveryId  String?   @unique
+  topic       String
+  resourceId  Int?
+  payload     String
+  status      String    @default("PENDING") // PENDING | PROCESSED | FAILED | IGNORED
+  attempts    Int       @default(0)
+  error       String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([receivedAt])
+}

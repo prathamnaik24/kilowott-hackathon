@@ -1,0 +1,17 @@
+{
+  "name": "woopulse-crm",
+  "private": true,
+  "version": "1.0.0",
+  "description": "WooCommerce-connected CRM with real-time sync, automated workflows and an agentic AI copilot",
+  "workspaces": ["server", "client"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client && npm run build -w server",
+    "start": "npm run start -w server",
+    "test": "npm run test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
